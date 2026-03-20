@@ -1,0 +1,16 @@
+# Foundry
+/out/
+/cache/
+
+# Environment
+.env
+
+# Node (Phase 2)
+node_modules/
+dist/
+
+# OS
+.DS_Store
+
+#참조
+참조
