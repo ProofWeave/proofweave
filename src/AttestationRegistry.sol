@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {
-    Initializable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {
-    UUPSUpgradeable
-} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title AttestationRegistry
@@ -20,11 +14,7 @@ import {
  *      - operator: API 서버 지갑 (attest 전용)
  *      - owner: 프로젝트 관리자 (upgrade, operator 변경)
  */
-contract AttestationRegistry is
-    Initializable,
-    UUPSUpgradeable,
-    OwnableUpgradeable
-{
+contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ============================================================
     //                         STRUCTS
     // ============================================================
@@ -67,10 +57,7 @@ contract AttestationRegistry is
         uint256 timestamp
     );
 
-    event OperatorUpdated(
-        address indexed oldOperator,
-        address indexed newOperator
-    );
+    event OperatorUpdated(address indexed oldOperator, address indexed newOperator);
 
     // ============================================================
     //                         ERRORS
@@ -106,10 +93,7 @@ contract AttestationRegistry is
     /// @param initialOwner 프로젝트 관리자 주소
     /// @param initialOperator API 서버 지갑 주소
     // 초기화 로직 + modifier 적용
-    function initialize(
-        address initialOwner,
-        address initialOperator
-    ) public initializer {
+    function initialize(address initialOwner, address initialOperator) public initializer {
         if (initialOwner == address(0)) revert ZeroAddress();
         if (initialOperator == address(0)) revert ZeroAddress();
 
@@ -148,12 +132,11 @@ contract AttestationRegistry is
     /// @param aiModel AI 모델 이름
     /// @param offchainRef IPFS CID
     /// @return attestationId 생성된 attestation ID
-    function attest(
-        bytes32 contentHash,
-        address creator,
-        string calldata aiModel,
-        string calldata offchainRef
-    ) external onlyOperator returns (bytes32 attestationId) {
+    function attest(bytes32 contentHash, address creator, string calldata aiModel, string calldata offchainRef)
+        external
+        onlyOperator
+        returns (bytes32 attestationId)
+    {
         // 1. 입력 검증 (가장 자주 실패할 것부터 → 빠른 revert)
         if (contentHash == bytes32(0)) revert EmptyContentHash();
         if (creator == address(0)) revert ZeroAddress();
@@ -161,16 +144,13 @@ contract AttestationRegistry is
         if (bytes(offchainRef).length == 0) revert EmptyOffchainRef();
 
         // 2. 중복 체크: keccak256(contentHash + creator)
-        bytes32 registrationKey = keccak256(
-            abi.encodePacked(contentHash, creator)
-        );
-        if (_attestationByKey[registrationKey] != bytes32(0))
+        bytes32 registrationKey = keccak256(abi.encodePacked(contentHash, creator));
+        if (_attestationByKey[registrationKey] != bytes32(0)) {
             revert AlreadyAttested(contentHash, creator);
+        }
 
         // 3. attestationId 생성: keccak256(contentHash + creator + timestamp)
-        attestationId = keccak256(
-            abi.encodePacked(contentHash, creator, block.timestamp)
-        );
+        attestationId = keccak256(abi.encodePacked(contentHash, creator, block.timestamp));
 
         // 4. Storage 기록 (SSTORE 3회)
         _attestations[attestationId] = Attestation({
@@ -184,14 +164,7 @@ contract AttestationRegistry is
         _creatorAttestations[creator].push(attestationId); // 온체인 검증용
 
         // 5. 이벤트
-        emit Attested(
-            attestationId,
-            contentHash,
-            creator,
-            aiModel,
-            offchainRef,
-            block.timestamp
-        );
+        emit Attested(attestationId, contentHash, creator, aiModel, offchainRef, block.timestamp);
     }
 
     // ============================================================
@@ -199,38 +172,27 @@ contract AttestationRegistry is
     // ============================================================
 
     /// @notice contentHash + creator로 attestation 조회
-    function verify(
-        bytes32 contentHash,
-        address creator
-    ) external view returns (Attestation memory) {
-        bytes32 registrationKey = keccak256(
-            abi.encodePacked(contentHash, creator)
-        );
+    function verify(bytes32 contentHash, address creator) external view returns (Attestation memory) {
+        bytes32 registrationKey = keccak256(abi.encodePacked(contentHash, creator));
         bytes32 attestationId = _attestationByKey[registrationKey];
         if (attestationId == bytes32(0)) revert AttestationNotFound();
         return _attestations[attestationId];
     }
 
     /// @notice attestationId로 attestation 조회
-    function getAttestation(
-        bytes32 attestationId
-    ) external view returns (Attestation memory) {
+    function getAttestation(bytes32 attestationId) external view returns (Attestation memory) {
         Attestation memory att = _attestations[attestationId];
         if (att.creator == address(0)) revert AttestationNotFound();
         return att;
     }
 
     /// @notice creator가 등록한 attestation 수
-    function getAttestationCount(
-        address creator
-    ) external view returns (uint256) {
+    function getAttestationCount(address creator) external view returns (uint256) {
         return _creatorAttestations[creator].length;
     }
 
     /// @notice creator가 등록한 attestationId 목록
-    function getCreatorAttestations(
-        address creator
-    ) external view returns (bytes32[] memory) {
+    function getCreatorAttestations(address creator) external view returns (bytes32[] memory) {
         return _creatorAttestations[creator];
     }
 
