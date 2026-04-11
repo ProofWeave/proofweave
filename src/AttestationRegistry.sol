@@ -197,8 +197,9 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     }
 
     // ============================================================
-    //                    PAYMENT (Phase 1-3)
+    //                    DESIGN NOTE
     // ============================================================
-
-    // TODO: Phase 1-3에서 구현 — deposit(), withdraw(), setPaymentPolicy(), payFrom(), hasPaid()
+    // 결제는 x402 프로토콜(HTTP 402) + ProofWeave Access Layer에서 처리.
+    // 이 컨트랙트는 AI 생성물의 출처 기록(attestation) 전용.
+    // See: 참조/payment_architecture.md
 }
