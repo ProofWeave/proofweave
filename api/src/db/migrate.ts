@@ -2,7 +2,7 @@ import { pool } from "../services/db.js";
 
 const SCHEMA = `
 -- ============================================================
---  ProofWeave DB Schema (Phase 2-1 + 2-2)
+--  ProofWeave DB Schema (Phase 2-1 + 2-2 + 2-3)
 -- ============================================================
 
 -- pgcrypto extension (UUID 생성용)
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS consumed_signatures (
   consumed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Access Receipts (Phase 2-4에서 활성화)
+-- Access Receipts (Phase 2-3)
 CREATE TABLE IF NOT EXISTS access_receipts (
   receipt_id UUID PRIMARY KEY,
   attestation_id TEXT NOT NULL,
@@ -54,13 +54,39 @@ CREATE TABLE IF NOT EXISTS access_receipts (
 
 CREATE INDEX IF NOT EXISTS idx_receipts_payer ON access_receipts(payer);
 CREATE INDEX IF NOT EXISTS idx_receipts_attestation ON access_receipts(attestation_id);
+
+-- 가격 정책 (Phase 2-3)
+CREATE TABLE IF NOT EXISTS pricing_policies (
+  attestation_id TEXT PRIMARY KEY,
+  creator_address TEXT NOT NULL,
+  price_usd_micros BIGINT NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'USDC',
+  network TEXT NOT NULL DEFAULT 'eip155:84532',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 결제 원장 (Phase 2-3)
+CREATE TABLE IF NOT EXISTS payments_ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  attestation_id TEXT NOT NULL,
+  payer TEXT NOT NULL,
+  amount_usd_micros BIGINT NOT NULL,
+  payment_method TEXT NOT NULL,
+  tx_hash TEXT,
+  receipt_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ledger_payer ON payments_ledger(payer);
+CREATE INDEX IF NOT EXISTS idx_ledger_attestation ON payments_ledger(attestation_id);
 `;
 
 async function migrate() {
   console.log("🔄 Running database migration...");
   try {
     await pool.query(SCHEMA);
-    console.log("✅ Migration complete — 4 tables created");
+    console.log("✅ Migration complete — 6 tables created");
   } catch (err) {
     console.error("❌ Migration failed:", err);
     process.exit(1);
