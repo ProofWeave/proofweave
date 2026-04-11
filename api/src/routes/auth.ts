@@ -3,8 +3,11 @@ import {
   parseSignatureMessage,
   isTimestampValid,
   verifyWalletSignature,
+  isSignatureConsumed,
+  consumeSignature,
+  hasActiveApiKey,
   createApiKey,
-  revokeApiKeys,
+  rotateApiKey,
 } from "../services/auth.js";
 
 export const authRouter = Router();
@@ -47,14 +50,29 @@ authRouter.post("/auth/register", async (req, res) => {
     return;
   }
 
-  // 6. 서명 검증
+  // 6. 서명 리플레이 방지
+  if (await isSignatureConsumed(signature)) {
+    res.status(409).json({ error: "Signature already used" });
+    return;
+  }
+
+  // 7. 서명 검증
   const validSig = await verifyWalletSignature(address, message, signature);
   if (!validSig) {
     res.status(401).json({ error: "Invalid signature" });
     return;
   }
 
-  // 7. API Key 발급
+  // 8. 중복 등록 방지 — 이미 활성 키가 있으면 rotate 유도
+  if (await hasActiveApiKey(address)) {
+    res.status(409).json({
+      error: "Active API key already exists. Use POST /auth/rotate to replace it.",
+    });
+    return;
+  }
+
+  // 9. 서명 소비 + API Key 발급
+  await consumeSignature(signature, address);
   const apiKey = await createApiKey(address);
 
   res.status(201).json({
@@ -65,7 +83,7 @@ authRouter.post("/auth/register", async (req, res) => {
 
 /**
  * POST /auth/rotate
- * 기존 키 무효화 + 새 API Key 발급
+ * 기존 키 무효화 + 새 API Key 발급 (원자적 트랜잭션)
  */
 authRouter.post("/auth/rotate", async (req, res) => {
   const { address, message, signature } = req.body;
@@ -101,18 +119,21 @@ authRouter.post("/auth/rotate", async (req, res) => {
     return;
   }
 
-  // 6. 서명 검증
+  // 6. 서명 리플레이 방지
+  if (await isSignatureConsumed(signature)) {
+    res.status(409).json({ error: "Signature already used" });
+    return;
+  }
+
+  // 7. 서명 검증
   const validSig = await verifyWalletSignature(address, message, signature);
   if (!validSig) {
     res.status(401).json({ error: "Invalid signature" });
     return;
   }
 
-  // 7. 기존 키 무효화
-  const revokedCount = await revokeApiKeys(address);
-
-  // 8. 새 키 발급
-  const apiKey = await createApiKey(address);
+  // 8. 원자적 rotate (서명 소비 + 키 폐기 + 새 키 발급)
+  const { apiKey, revokedCount } = await rotateApiKey(address, signature);
 
   res.status(200).json({
     apiKey,

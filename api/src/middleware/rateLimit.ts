@@ -7,6 +7,7 @@ interface RateLimitEntry {
 
 const WINDOW_MS = 60_000; // 1분
 const MAX_REQUESTS = 100; // 윈도우당 최대 요청
+const MAX_STORE_SIZE = 10_000; // 메모리 폭발 방지 상한
 
 // 메모리 기반 (프로덕션에서는 Redis로 교체)
 const store = new Map<string, RateLimitEntry>();
@@ -21,21 +22,27 @@ setInterval(() => {
 
 /**
  * Rate limit 미들웨어
- * API Key 기반 (없으면 IP 기반)
+ * 항상 IP 기반 식별 (Codex #2: API Key 기반 우회 방지)
+ * 인증된 요청은 이후 별도 rate limit 적용 가능
  */
 export function rateLimit(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  const identifier =
-    (req.headers["x-api-key"] as string) || req.ip || "unknown";
+  // 항상 IP 기반 — 인증 전이므로 API Key를 신뢰할 수 없음
+  const identifier = req.ip || req.socket.remoteAddress || "unknown";
 
   const now = Date.now();
   const entry = store.get(identifier);
 
   if (!entry || now > entry.resetAt) {
-    // 새 윈도우 시작
+    // 메모리 상한 초과 시 가장 오래된 엔트리 정리
+    if (store.size >= MAX_STORE_SIZE) {
+      const oldestKey = store.keys().next().value;
+      if (oldestKey) store.delete(oldestKey);
+    }
+
     store.set(identifier, { count: 1, resetAt: now + WINDOW_MS });
     next();
     return;

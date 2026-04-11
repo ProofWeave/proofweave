@@ -29,7 +29,7 @@ export function parseSignatureMessage(message: string): {
   timestamp: string;
   action: "register" | "rotate";
 } | null {
-  const lines = message.split("\n").map((l) => l.trim());
+  const lines = message.split(/\r?\n/).map((l) => l.trim());
   if (lines[0] !== "ProofWeave API Key Request") return null;
 
   const addressLine = lines.find((l) => l.startsWith("Address:"));
@@ -51,8 +51,9 @@ export function parseSignatureMessage(message: string): {
 export function isTimestampValid(timestamp: string): boolean {
   const ts = new Date(timestamp).getTime();
   if (isNaN(ts)) return false;
-  const diff = Math.abs(Date.now() - ts);
-  return diff <= SIGNATURE_TTL_MS;
+  const diff = Date.now() - ts;
+  // 미래 타임스탬프 거부, 과거 5분 이내만 유효
+  return diff >= 0 && diff <= SIGNATURE_TTL_MS;
 }
 
 /** EIP-191 서명 검증 */
@@ -71,6 +72,49 @@ export async function verifyWalletSignature(
   } catch {
     return false;
   }
+}
+
+// ── 리플레이 방지 ────────────────────────────────────────────
+
+/** 서명 해시 생성 */
+export function hashSignature(signature: string): string {
+  return createHash("sha256").update(signature).digest("hex");
+}
+
+/** 서명이 이미 소비되었는지 확인 */
+export async function isSignatureConsumed(signature: string): Promise<boolean> {
+  const sigHash = hashSignature(signature);
+  const result = await pool.query(
+    `SELECT 1 FROM consumed_signatures WHERE sig_hash = $1`,
+    [sigHash]
+  );
+  return result.rows.length > 0;
+}
+
+/** 서명을 소비 처리 (DB에 기록) */
+export async function consumeSignature(
+  signature: string,
+  walletAddress: string
+): Promise<void> {
+  const sigHash = hashSignature(signature);
+  await pool.query(
+    `INSERT INTO consumed_signatures (sig_hash, wallet_address) VALUES ($1, $2)
+     ON CONFLICT (sig_hash) DO NOTHING`,
+    [sigHash, walletAddress.toLowerCase()]
+  );
+}
+
+// ── API Key CRUD ────────────────────────────────────────────
+
+/** 해당 지갑에 활성 API Key가 있는지 확인 */
+export async function hasActiveApiKey(walletAddress: string): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM api_keys
+     WHERE wallet_address = $1 AND revoked_at IS NULL
+     LIMIT 1`,
+    [walletAddress.toLowerCase()]
+  );
+  return result.rows.length > 0;
 }
 
 /** 새 API Key 생성 → DB 저장 → 평문 키 반환 */
@@ -94,7 +138,7 @@ export async function verifyApiKey(
 
   const keyHash = hashApiKey(key);
   const result = await pool.query(
-    `SELECT wallet_address FROM api_keys 
+    `SELECT wallet_address FROM api_keys
      WHERE key_hash = $1 AND revoked_at IS NULL`,
     [keyHash]
   );
@@ -106,9 +150,55 @@ export async function verifyApiKey(
 /** 특정 지갑의 모든 API Key 무효화 */
 export async function revokeApiKeys(walletAddress: string): Promise<number> {
   const result = await pool.query(
-    `UPDATE api_keys SET revoked_at = NOW() 
+    `UPDATE api_keys SET revoked_at = NOW()
      WHERE wallet_address = $1 AND revoked_at IS NULL`,
     [walletAddress.toLowerCase()]
   );
   return result.rowCount ?? 0;
+}
+
+/**
+ * Rotate: 기존 키 폐기 + 새 키 발급 (원자적 트랜잭션)
+ * Codex #4: 부분 실패 방지
+ */
+export async function rotateApiKey(
+  walletAddress: string,
+  signature: string
+): Promise<{ apiKey: string; revokedCount: number }> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. 서명 소비 기록
+    const sigHash = hashSignature(signature);
+    await client.query(
+      `INSERT INTO consumed_signatures (sig_hash, wallet_address) VALUES ($1, $2)
+       ON CONFLICT (sig_hash) DO NOTHING`,
+      [sigHash, walletAddress.toLowerCase()]
+    );
+
+    // 2. 기존 키 폐기
+    const revokeResult = await client.query(
+      `UPDATE api_keys SET revoked_at = NOW()
+       WHERE wallet_address = $1 AND revoked_at IS NULL`,
+      [walletAddress.toLowerCase()]
+    );
+    const revokedCount = revokeResult.rowCount ?? 0;
+
+    // 3. 새 키 발급
+    const apiKey = generateApiKey();
+    const keyHash = hashApiKey(apiKey);
+    await client.query(
+      `INSERT INTO api_keys (key_hash, wallet_address) VALUES ($1, $2)`,
+      [keyHash, walletAddress.toLowerCase()]
+    );
+
+    await client.query("COMMIT");
+    return { apiKey, revokedCount };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

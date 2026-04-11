@@ -84,6 +84,18 @@ describe("auth.service", () => {
       const result = parseSignatureMessage(msg);
       expect(result?.action).toBe("rotate");
     });
+
+    it("should handle CRLF line endings", () => {
+      const crlfMessage = [
+        "ProofWeave API Key Request",
+        "Address: 0x1234567890abcdef1234567890abcdef12345678",
+        "Timestamp: 2026-04-12T03:00:00Z",
+        "Action: register",
+      ].join("\r\n");
+      const result = parseSignatureMessage(crlfMessage);
+      expect(result).not.toBeNull();
+      expect(result?.action).toBe("register");
+    });
   });
 
   describe("isTimestampValid", () => {
@@ -104,6 +116,11 @@ describe("auth.service", () => {
     it("should accept timestamp within 5 minutes", () => {
       const recent = new Date(Date.now() - 4 * 60_000).toISOString();
       expect(isTimestampValid(recent)).toBe(true);
+    });
+
+    it("should reject future timestamp", () => {
+      const future = new Date(Date.now() + 60_000).toISOString();
+      expect(isTimestampValid(future)).toBe(false);
     });
   });
 });

@@ -2,7 +2,7 @@ import { pool } from "../services/db.js";
 
 const SCHEMA = `
 -- ============================================================
---  ProofWeave DB Schema (Phase 2-1)
+--  ProofWeave DB Schema (Phase 2-1 + 2-2)
 -- ============================================================
 
 -- pgcrypto extension (UUID 생성용)
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS attestations (
 CREATE INDEX IF NOT EXISTS idx_attestations_creator ON attestations(creator);
 CREATE INDEX IF NOT EXISTS idx_attestations_content_hash ON attestations(content_hash);
 
--- API Keys (Phase 2-2에서 활성화)
+-- API Keys (Phase 2-2)
 CREATE TABLE IF NOT EXISTS api_keys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key_hash TEXT NOT NULL UNIQUE,
@@ -33,9 +33,14 @@ CREATE TABLE IF NOT EXISTS api_keys (
   revoked_at TIMESTAMPTZ
 );
 
+-- 소비된 서명 해시 — 리플레이 방지 (Phase 2-2)
+CREATE TABLE IF NOT EXISTS consumed_signatures (
+  sig_hash TEXT PRIMARY KEY,
+  wallet_address TEXT NOT NULL,
+  consumed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Access Receipts (Phase 2-4에서 활성화)
--- Note: gen_random_uuid()는 v4. UUID v7 시간순 정렬이 필요하면
--- 애플리케이션 레벨에서 생성하여 삽입 (Phase 2-4에서 구현)
 CREATE TABLE IF NOT EXISTS access_receipts (
   receipt_id UUID PRIMARY KEY,
   attestation_id TEXT NOT NULL,
@@ -55,7 +60,7 @@ async function migrate() {
   console.log("🔄 Running database migration...");
   try {
     await pool.query(SCHEMA);
-    console.log("✅ Migration complete — 3 tables created");
+    console.log("✅ Migration complete — 4 tables created");
   } catch (err) {
     console.error("❌ Migration failed:", err);
     process.exit(1);
