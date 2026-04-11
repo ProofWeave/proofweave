@@ -22,6 +22,7 @@ const hexPrivateKey = z
 const envSchema = z.object({
   // Server
   PORT: z.coerce.number().default(3001),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
   // Database
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

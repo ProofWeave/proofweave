@@ -41,22 +41,29 @@ export async function setPrice(
   attestationId: string,
   creatorAddress: string,
   priceUsdMicros: number
-): Promise<PricingPolicy> {
-  await pool.query(
+): Promise<PricingPolicy | null> {
+  // UPSERT: 신규 삽입 또는 동일 creator인 경우에만 업데이트
+  const result = await pool.query(
     `INSERT INTO pricing_policies (attestation_id, creator_address, price_usd_micros)
      VALUES ($1, $2, $3)
      ON CONFLICT (attestation_id) DO UPDATE SET
        price_usd_micros = EXCLUDED.price_usd_micros,
-       updated_at = NOW()`,
+       updated_at = NOW()
+     WHERE pricing_policies.creator_address = $2
+     RETURNING attestation_id, creator_address, price_usd_micros, currency, network`,
     [attestationId, creatorAddress.toLowerCase(), priceUsdMicros]
   );
 
+  // RETURNING이 비어있으면 다른 creator가 설정한 가격 → 권한 없음
+  if (result.rows.length === 0) return null;
+
+  const row = result.rows[0];
   return {
-    attestationId,
-    creatorAddress: creatorAddress.toLowerCase(),
-    priceUsdMicros,
-    currency: "USDC",
-    network: "eip155:84532",
+    attestationId: row.attestation_id,
+    creatorAddress: row.creator_address,
+    priceUsdMicros: Number(row.price_usd_micros),
+    currency: row.currency,
+    network: row.network,
   };
 }
 

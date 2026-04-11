@@ -27,10 +27,15 @@ pricingRouter.post("/pricing", authenticate, async (req, res) => {
     return;
   }
 
-  // TODO: Phase 2-5에서 attestation의 creator가 본인인지 DB 검증
-  // 현재는 API Key 소유자가 곧 creator로 간주
-
   const policy = await setPrice(attestationId, creator, priceUsdMicros);
+
+  if (!policy) {
+    res.status(403).json({
+      error: "Not authorized to set pricing for this attestation",
+      message: "Only the original creator can modify pricing",
+    });
+    return;
+  }
 
   res.status(200).json({
     attestationId: policy.attestationId,
