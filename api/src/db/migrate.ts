@@ -5,6 +5,9 @@ const SCHEMA = `
 --  ProofWeave DB Schema (Phase 2-1)
 -- ============================================================
 
+-- pgcrypto extension (UUID 생성용)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- attestations 캐시 (Phase 2-6 인덱서가 채움)
 CREATE TABLE IF NOT EXISTS attestations (
   attestation_id TEXT PRIMARY KEY,
@@ -31,8 +34,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 
 -- Access Receipts (Phase 2-4에서 활성화)
+-- Note: gen_random_uuid()는 v4. UUID v7 시간순 정렬이 필요하면
+-- 애플리케이션 레벨에서 생성하여 삽입 (Phase 2-4에서 구현)
 CREATE TABLE IF NOT EXISTS access_receipts (
-  receipt_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_id UUID PRIMARY KEY,
   attestation_id TEXT NOT NULL,
   payer TEXT NOT NULL,
   payment_method TEXT NOT NULL CHECK (payment_method IN ('x402', 'delegated')),
