@@ -1,0 +1,114 @@
+import { randomBytes, createHash } from "crypto";
+import { verifyMessage } from "viem";
+import { pool } from "./db.js";
+
+const API_KEY_PREFIX = "pw_";
+const API_KEY_BYTES = 24; // 48 hex chars
+const SIGNATURE_TTL_MS = 5 * 60 * 1000; // 서명 메시지 유효시간: 5분
+
+/** API Key 생성: "pw_" + 48 hex chars */
+export function generateApiKey(): string {
+  return API_KEY_PREFIX + randomBytes(API_KEY_BYTES).toString("hex");
+}
+
+/** API Key → SHA-256 해시 (DB 저장용) */
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+/**
+ * 서명 메시지 파싱 + 검증
+ * 형식:
+ *   ProofWeave API Key Request
+ *   Address: 0x...
+ *   Timestamp: 2026-04-12T03:00:00Z
+ *   Action: register
+ */
+export function parseSignatureMessage(message: string): {
+  address: string;
+  timestamp: string;
+  action: "register" | "rotate";
+} | null {
+  const lines = message.split("\n").map((l) => l.trim());
+  if (lines[0] !== "ProofWeave API Key Request") return null;
+
+  const addressLine = lines.find((l) => l.startsWith("Address:"));
+  const timestampLine = lines.find((l) => l.startsWith("Timestamp:"));
+  const actionLine = lines.find((l) => l.startsWith("Action:"));
+
+  if (!addressLine || !timestampLine || !actionLine) return null;
+
+  const address = addressLine.replace("Address:", "").trim();
+  const timestamp = timestampLine.replace("Timestamp:", "").trim();
+  const action = actionLine.replace("Action:", "").trim();
+
+  if (action !== "register" && action !== "rotate") return null;
+
+  return { address, timestamp, action };
+}
+
+/** 타임스탬프 유효성 검증 (5분 이내) */
+export function isTimestampValid(timestamp: string): boolean {
+  const ts = new Date(timestamp).getTime();
+  if (isNaN(ts)) return false;
+  const diff = Math.abs(Date.now() - ts);
+  return diff <= SIGNATURE_TTL_MS;
+}
+
+/** EIP-191 서명 검증 */
+export async function verifyWalletSignature(
+  address: string,
+  message: string,
+  signature: string
+): Promise<boolean> {
+  try {
+    const valid = await verifyMessage({
+      address: address as `0x${string}`,
+      message,
+      signature: signature as `0x${string}`,
+    });
+    return valid;
+  } catch {
+    return false;
+  }
+}
+
+/** 새 API Key 생성 → DB 저장 → 평문 키 반환 */
+export async function createApiKey(walletAddress: string): Promise<string> {
+  const apiKey = generateApiKey();
+  const keyHash = hashApiKey(apiKey);
+
+  await pool.query(
+    `INSERT INTO api_keys (key_hash, wallet_address) VALUES ($1, $2)`,
+    [keyHash, walletAddress.toLowerCase()]
+  );
+
+  return apiKey; // 평문은 이 시점에서만 반환
+}
+
+/** API Key로 소유자 조회 (null = 유효하지 않음) */
+export async function verifyApiKey(
+  key: string
+): Promise<{ walletAddress: string } | null> {
+  if (!key.startsWith(API_KEY_PREFIX)) return null;
+
+  const keyHash = hashApiKey(key);
+  const result = await pool.query(
+    `SELECT wallet_address FROM api_keys 
+     WHERE key_hash = $1 AND revoked_at IS NULL`,
+    [keyHash]
+  );
+
+  if (result.rows.length === 0) return null;
+  return { walletAddress: result.rows[0].wallet_address };
+}
+
+/** 특정 지갑의 모든 API Key 무효화 */
+export async function revokeApiKeys(walletAddress: string): Promise<number> {
+  const result = await pool.query(
+    `UPDATE api_keys SET revoked_at = NOW() 
+     WHERE wallet_address = $1 AND revoked_at IS NULL`,
+    [walletAddress.toLowerCase()]
+  );
+  return result.rowCount ?? 0;
+}
