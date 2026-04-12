@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { getPrice, setPrice } from "../services/pricing.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { getAttestationFromDB } from "../services/attestation.js";
 
 export const pricingRouter = Router();
 
 /**
  * POST /pricing
- * 가격 정책 설정 (creator 본인만)
+ * 가격 정책 설정 (attestation의 실제 creator만 가능)
  */
 pricingRouter.post("/pricing", authenticate, async (req, res) => {
   const { attestationId, priceUsdMicros } = req.body;
@@ -24,6 +25,25 @@ pricingRouter.post("/pricing", authenticate, async (req, res) => {
 
   if (typeof priceUsdMicros !== "number" || priceUsdMicros < 0) {
     res.status(400).json({ error: "priceUsdMicros must be a non-negative number" });
+    return;
+  }
+
+  // Phase 2-5: attestation 존재 + creator 일치 검증
+  // DB에 attestation이 없으면 가격 설정 불가 (선점 방지)
+  const attestation = await getAttestationFromDB(attestationId);
+  if (!attestation) {
+    res.status(404).json({
+      error: "Attestation not found",
+      message: "You must create an attestation before setting its price",
+    });
+    return;
+  }
+
+  if (attestation.creator.toLowerCase() !== creator.toLowerCase()) {
+    res.status(403).json({
+      error: "Not authorized",
+      message: "Only the attestation creator can set pricing",
+    });
     return;
   }
 

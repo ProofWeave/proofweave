@@ -8,7 +8,7 @@ const SCHEMA = `
 -- pgcrypto extension (UUID 생성용)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- attestations 캐시 (Phase 2-6 인덱서가 채움)
+-- attestations (Phase 2-1 생성 + 2-5 확장)
 CREATE TABLE IF NOT EXISTS attestations (
   attestation_id TEXT PRIMARY KEY,
   content_hash TEXT NOT NULL,
@@ -18,11 +18,26 @@ CREATE TABLE IF NOT EXISTS attestations (
   block_number BIGINT NOT NULL,
   block_timestamp TIMESTAMPTZ NOT NULL,
   tx_hash TEXT NOT NULL,
+  ipfs_cid TEXT,
+  encryption_salt TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Phase 2-5: 새 컬럼 추가 (이미 있으면 무시)
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN ipfs_cid TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN encryption_salt TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_attestations_creator ON attestations(creator);
 CREATE INDEX IF NOT EXISTS idx_attestations_content_hash ON attestations(content_hash);
+CREATE INDEX IF NOT EXISTS idx_attestations_ai_model ON attestations(ai_model);
+CREATE INDEX IF NOT EXISTS idx_attestations_created_at ON attestations(created_at);
 
 -- API Keys (Phase 2-2 + 2-4: smart_wallet_address 추가)
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -43,10 +58,6 @@ END $$;
 -- 지갑당 활성 API key 최대 1개 보장 (동시 register 레이스 방지)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_active_wallet
   ON api_keys (wallet_address) WHERE revoked_at IS NULL;
-
--- txHash 기반 idempotency 검색용
-CREATE INDEX IF NOT EXISTS idx_payments_ledger_tx_hash
-  ON payments_ledger (tx_hash) WHERE tx_hash IS NOT NULL;
 
 -- 소비된 서명 해시 — 리플레이 방지 (Phase 2-2)
 CREATE TABLE IF NOT EXISTS consumed_signatures (
@@ -102,6 +113,9 @@ CREATE TABLE IF NOT EXISTS payments_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_ledger_payer ON payments_ledger(payer);
 CREATE INDEX IF NOT EXISTS idx_ledger_attestation ON payments_ledger(attestation_id);
+-- txHash 기반 idempotency 검색용
+CREATE INDEX IF NOT EXISTS idx_payments_ledger_tx_hash
+  ON payments_ledger (tx_hash) WHERE tx_hash IS NOT NULL;
 
 -- 결제 견적 — 중복 결제 방지 (Phase 2-4)
 CREATE TABLE IF NOT EXISTS payment_quotes (

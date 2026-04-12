@@ -1,0 +1,146 @@
+import { Router } from "express";
+import { authenticate } from "../middleware/authenticate.js";
+import { x402Gate } from "../middleware/x402Gate.js";
+import {
+  getAttestationFromDB,
+  getAttestationDetail,
+  verifyAttestation,
+  searchAttestations,
+} from "../services/attestation.js";
+
+export const attestationsRouter = Router();
+
+/**
+ * GET /attestations/:id
+ * 기본 정보 조회 (무료, 인증 필요)
+ */
+attestationsRouter.get("/attestations/:id", authenticate, async (req, res) => {
+  const id = req.params.id as string;
+
+  try {
+    const attestation = await getAttestationFromDB(id);
+    if (!attestation) {
+      res.status(404).json({ error: "Attestation not found" });
+      return;
+    }
+
+    res.status(200).json({
+      attestationId: attestation.attestationId,
+      contentHash: attestation.contentHash,
+      creator: attestation.creator,
+      aiModel: attestation.aiModel,
+      offchainRef: attestation.offchainRef,
+      blockNumber: attestation.blockNumber,
+      blockTimestamp: attestation.blockTimestamp,
+      txHash: attestation.txHash,
+      createdAt: attestation.createdAt,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Failed to get attestation", detail: message });
+  }
+});
+
+/**
+ * GET /attestations/:id/detail
+ * 유료 상세 조회 — x402Gate 통과 후 IPFS → AES 복호화 → 평문 반환
+ */
+attestationsRouter.get("/attestations/:id/detail", authenticate, x402Gate, async (req, res) => {
+  const id = req.params.id as string;
+
+  try {
+    const { plaintext, attestation } = await getAttestationDetail(id);
+
+    res.status(200).json({
+      attestationId: attestation.attestationId,
+      contentHash: attestation.contentHash,
+      creator: attestation.creator,
+      aiModel: attestation.aiModel,
+      txHash: attestation.txHash,
+      data: plaintext,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+
+    if (message.includes("not found")) {
+      res.status(404).json({ error: "Attestation not found" });
+      return;
+    }
+
+    console.error("[GET /attestations/:id/detail] Error:", message);
+    res.status(500).json({ error: "Failed to get attestation detail", detail: message });
+  }
+});
+
+/**
+ * GET /verify/:contentHash
+ * 온체인 검증 (공개, 인증 불필요)
+ *
+ * Query: ?creator=0x... (필수)
+ */
+attestationsRouter.get("/verify/:contentHash", async (req, res) => {
+  const { contentHash } = req.params;
+  const creator = req.query.creator as string | undefined;
+
+  if (!contentHash) {
+    res.status(400).json({ error: "contentHash is required" });
+    return;
+  }
+  if (!creator) {
+    res.status(400).json({ error: "creator query parameter is required" });
+    return;
+  }
+
+  try {
+    const result = await verifyAttestation(contentHash, creator);
+    res.status(200).json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+
+    if (message.includes("not found on-chain")) {
+      res.status(404).json({
+        verified: false,
+        error: "Attestation not found on-chain",
+        contentHash,
+        creator,
+      });
+      return;
+    }
+
+    // N-3 fix: RPC 장애 등은 502 (Bad Gateway)로 구분
+    if (message.includes("Chain verification failed")) {
+      console.error("[GET /verify] Chain error:", message);
+      res.status(502).json({ error: "Chain verification temporarily unavailable", detail: message });
+      return;
+    }
+
+    res.status(500).json({ error: "Verification failed", detail: message });
+  }
+});
+
+/**
+ * GET /search
+ * 검색 (인증 필요)
+ *
+ * Query: ?creator=0x...&aiModel=gpt-4o&limit=20&offset=0
+ */
+attestationsRouter.get("/search", authenticate, async (req, res) => {
+  const { creator, aiModel, limit, offset } = req.query;
+
+  try {
+    const results = await searchAttestations({
+      creator: creator as string | undefined,
+      aiModel: aiModel as string | undefined,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+
+    res.status(200).json({
+      count: results.length,
+      attestations: results,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Search failed", detail: message });
+  }
+});

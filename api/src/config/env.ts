@@ -21,6 +21,7 @@ loadSecretsFromKeychain([
   "CDP_API_KEY_SECRET",
   "CDP_WALLET_SECRET",
   "RECEIPT_SECRET",
+  "DATA_ENCRYPTION_KEY",
 ]);
 
 // ── 커스텀 검증 헬퍼 ────────────────────────────────────────
@@ -66,6 +67,9 @@ const envSchema = z.object({
 
   // Receipt HMAC 서명 시크릿 (openssl rand -hex 32)
   RECEIPT_SECRET: z.string().min(32, "RECEIPT_SECRET must be at least 32 chars").optional(),
+
+  // 데이터 암호화 마스터 키 (openssl rand -hex 32, HKDF 파생용)
+  DATA_ENCRYPTION_KEY: z.string().length(64, "DATA_ENCRYPTION_KEY must be 64 hex chars (32 bytes)").optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
