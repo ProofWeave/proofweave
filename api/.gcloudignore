@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*
+__tests__/
+*.test.ts
+*.spec.ts
+scripts/
+.DS_Store
+.git/

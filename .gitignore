@@ -5,7 +5,8 @@
 
 # Environment
 .env
-.env.example
+.env.local
+!.env.example
 
 # Node (Phase 2)
 node_modules/

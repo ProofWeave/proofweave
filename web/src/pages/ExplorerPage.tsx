@@ -1,21 +1,21 @@
 import { useState } from 'react';
-import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface Attestation {
-  id: number;
-  content_hash: string;
+  attestationId: string;
+  contentHash: string;
   creator: string;
-  model_id: string;
-  created_at: string;
-  status: string;
-  tx_hash: string;
+  aiModel: string;
+  createdAt: string;
+  txHash: string;
+  blockNumber: number;
+  offchainRef: string;
 }
 
 interface SearchResult {
+  count: number;
   attestations: Attestation[];
-  page: number;
-  limit: number;
 }
 
 export function ExplorerPage() {
@@ -33,7 +33,7 @@ export function ExplorerPage() {
       const params = new URLSearchParams({ page: String(p), limit: '20' });
       if (query.trim()) params.set('q', query.trim());
 
-      const data = await api.get<SearchResult>(`/attestations/search?${params}`);
+      const data = await api.get<SearchResult>(`/search?${params}`);
       setResults(data.attestations || []);
       setPage(p);
       setSearched(true);
@@ -121,29 +121,35 @@ export function ExplorerPage() {
             <tbody>
               {results.length > 0 ? (
                 results.map((att) => (
-                  <tr key={att.id}>
-                    <td className="mono">{att.id}</td>
-                    <td className="mono" title={att.content_hash}>
-                      {truncateHash(att.content_hash || '—')}
+                  <tr key={att.attestationId}>
+                    <td className="mono" title={att.attestationId}>
+                      {truncateHash(att.attestationId)}
+                    </td>
+                    <td className="mono" title={att.contentHash}>
+                      {truncateHash(att.contentHash || '—')}
                     </td>
                     <td className="mono" title={att.creator}>
                       {truncateHash(att.creator || '—')}
                     </td>
                     <td>
                       <span className="badge badge-purple">
-                        {att.model_id || '—'}
+                        {att.aiModel || '—'}
                       </span>
                     </td>
-                    <td className="text-xs">{formatDate(att.created_at)}</td>
+                    <td className="text-xs">{formatDate(att.createdAt)}</td>
                     <td>
-                      <span className={`badge ${att.status === 'confirmed' ? 'badge-success' : 'badge-warning'}`}>
-                        {att.status || 'pending'}
-                      </span>
+                      <span className="badge badge-success">confirmed</span>
                     </td>
                     <td>
-                      <button className="btn btn-secondary btn-sm">
-                        <Eye size={14} /> 보기
-                      </button>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${att.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        <ExternalLink size={14} /> Tx
+                      </a>
                     </td>
                   </tr>
                 ))
