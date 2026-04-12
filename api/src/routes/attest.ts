@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { createAttestation } from "../services/attestation.js";
+import { operatorAccount } from "../config/chain.js";
 
 export const attestRouter = Router();
 
@@ -24,10 +25,19 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
     return;
   }
 
-  const creator = req.apiKeyOwner!;
+  const apiKeyOwner = req.apiKeyOwner!;
+
+  // 웹 사용자(web:email)는 EVM 주소가 아니므로 operator 주소를 creator로 사용
+  // CLI/지갑 사용자(0x...)는 자신의 주소를 그대로 사용
+  const isWebUser = apiKeyOwner.startsWith("web:");
+  const creator = isWebUser ? operatorAccount.address : apiKeyOwner;
 
   try {
-    const result = await createAttestation({ data, creator, aiModel });
+    const result = await createAttestation({
+      data: isWebUser ? { ...data as Record<string, unknown>, submittedBy: apiKeyOwner } : data,
+      creator,
+      aiModel,
+    });
 
     res.status(201).json({
       attestationId: result.attestationId,
@@ -36,6 +46,7 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       txHash: result.txHash,
       creator,
       aiModel,
+      submittedBy: isWebUser ? apiKeyOwner : undefined,
       message: "Attestation created and recorded on-chain",
     });
   } catch (err: unknown) {
