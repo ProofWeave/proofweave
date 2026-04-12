@@ -109,6 +109,7 @@ export function AttestPage() {
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
         },
+        aiModel: result.model,
       });
       setAttestResult(data.attestationId);
       setStep('attest');
