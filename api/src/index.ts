@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { pricingRouter } from "./routes/pricing.js";
+import { walletRouter } from "./routes/wallet.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
@@ -18,6 +19,9 @@ app.use(authRouter);       // POST /auth/register, /auth/rotate
 
 // ── Pricing Routes ──────────────────────────────────────────
 app.use(pricingRouter);    // POST /pricing (authenticated), GET /pricing/:id (public)
+
+// ── Wallet Routes (Phase 2-4) ───────────────────────────────
+app.use(walletRouter);     // GET /wallet/balance, GET /wallet/address
 
 // TODO: Phase 2-5에서 authenticate + x402Gate 미들웨어를 적용한 라우트 추가
 // app.use("/attestations", authenticate, attestationRouter);

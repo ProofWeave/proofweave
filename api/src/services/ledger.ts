@@ -1,4 +1,5 @@
 import { pool } from "./db.js";
+import type { PoolClient } from "pg";
 
 export interface LedgerEntry {
   id?: string;
@@ -13,10 +14,14 @@ export interface LedgerEntry {
 
 /**
  * 결제 기록 저장
- * 모든 결제(x402, delegated)를 원장에 기록
+ * 모든 결제(smart-wallet)를 원장에 기록
  */
-export async function recordPayment(entry: LedgerEntry): Promise<void> {
-  await pool.query(
+export async function recordPayment(
+  entry: LedgerEntry,
+  client?: PoolClient
+): Promise<void> {
+  const queryFn = client ?? pool;
+  await queryFn.query(
     `INSERT INTO payments_ledger
        (attestation_id, payer, amount_usd_micros, payment_method, tx_hash, receipt_id)
      VALUES ($1, $2, $3, $4, $5, $6)`,

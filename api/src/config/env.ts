@@ -2,12 +2,26 @@ import { z } from "zod";
 import { config } from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
+import { loadSecretsFromKeychain } from "./keychain.js";
 
-// 루트 .env 파일 로드 (api/src/config/ → 3단계 상위 = proofweave/)
+// 루트 .env 파일 로드 (공개값만 포함)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const envPath = resolve(__dirname, "../../../.env");
 config({ path: envPath });
+
+// ── Keychain에서 비밀값 로드 ────────────────────────────────
+// .env에 없는 비밀값을 macOS Keychain에서 읽어 process.env에 주입
+// CI/Docker에서는 process.env에 직접 설정하므로 Keychain 단계 스킵됨
+loadSecretsFromKeychain([
+  "DEPLOYER_PRIVATE_KEY",
+  "OPERATOR_PRIVATE_KEY",
+  "PINATA_JWT",
+  "CDP_API_KEY_ID",
+  "CDP_API_KEY_SECRET",
+  "CDP_WALLET_SECRET",
+  "RECEIPT_SECRET",
+]);
 
 // ── 커스텀 검증 헬퍼 ────────────────────────────────────────
 const hexAddress = z
@@ -44,6 +58,14 @@ const envSchema = z.object({
   // IPFS
   PINATA_JWT: z.string().min(1, "PINATA_JWT is required"),
   PINATA_GATEWAY: z.string().min(1, "PINATA_GATEWAY is required"),
+
+  // Coinbase CDP (Smart Wallet 생성용)
+  CDP_API_KEY_ID: z.string().optional(),
+  CDP_API_KEY_SECRET: z.string().optional(),
+  CDP_WALLET_SECRET: z.string().optional(),
+
+  // Receipt HMAC 서명 시크릿 (openssl rand -hex 32)
+  RECEIPT_SECRET: z.string().min(32, "RECEIPT_SECRET must be at least 32 chars").optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

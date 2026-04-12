@@ -5,6 +5,7 @@
 
 # Environment
 .env
+.env.example
 
 # Node (Phase 2)
 node_modules/
@@ -15,4 +16,5 @@ dist/
 
 #기타
 참조
-.agent
+.agent/
+

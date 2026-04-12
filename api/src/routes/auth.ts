@@ -75,9 +75,22 @@ authRouter.post("/auth/register", async (req, res) => {
   await consumeSignature(signature, address);
   const apiKey = await createApiKey(address);
 
+  // 10. CDP 스마트 지갑 생성 (비동기, 실패해도 등록은 완료)
+  let smartWalletAddress: string | null = null;
+  try {
+    const { createSmartWallet } = await import("../services/wallet.js");
+    smartWalletAddress = await createSmartWallet(address);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn("[auth] Smart wallet creation failed (non-fatal):", errMsg);
+  }
+
   res.status(201).json({
     apiKey,
-    message: "Store this key securely. It will not be shown again.",
+    smartWalletAddress,
+    message: smartWalletAddress
+      ? "Store this key securely. Send USDC to your smart wallet for auto-payments."
+      : "Store this key securely. Smart wallet unavailable (CDP not configured).",
   });
 });
 

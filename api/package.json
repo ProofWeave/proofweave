@@ -11,13 +11,16 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@coinbase/cdp-sdk": "^1.47.0",
     "@x402/core": "^2.9.0",
     "@x402/evm": "^2.9.0",
     "@x402/express": "^2.9.0",
+    "bs58": "^6.0.0",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "pg": "^8.20.0",
     "pinata": "^2.5.5",
+    "uuidv7": "^1.2.1",
     "viem": "^2.47.12",
     "zod": "^4.3.6"
   },

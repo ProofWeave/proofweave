@@ -2,7 +2,7 @@ import { pool } from "../services/db.js";
 
 const SCHEMA = `
 -- ============================================================
---  ProofWeave DB Schema (Phase 2-1 + 2-2 + 2-3)
+--  ProofWeave DB Schema (Phase 2-1 + 2-2 + 2-3 + 2-4)
 -- ============================================================
 
 -- pgcrypto extension (UUID 생성용)
@@ -24,14 +24,29 @@ CREATE TABLE IF NOT EXISTS attestations (
 CREATE INDEX IF NOT EXISTS idx_attestations_creator ON attestations(creator);
 CREATE INDEX IF NOT EXISTS idx_attestations_content_hash ON attestations(content_hash);
 
--- API Keys (Phase 2-2)
+-- API Keys (Phase 2-2 + 2-4: smart_wallet_address 추가)
 CREATE TABLE IF NOT EXISTS api_keys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key_hash TEXT NOT NULL UNIQUE,
   wallet_address TEXT NOT NULL,
+  smart_wallet_address TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   revoked_at TIMESTAMPTZ
 );
+
+-- Phase 2-4: smart_wallet_address 컬럼 추가 (이미 있으면 무시)
+DO $$ BEGIN
+  ALTER TABLE api_keys ADD COLUMN smart_wallet_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- 지갑당 활성 API key 최대 1개 보장 (동시 register 레이스 방지)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_active_wallet
+  ON api_keys (wallet_address) WHERE revoked_at IS NULL;
+
+-- txHash 기반 idempotency 검색용
+CREATE INDEX IF NOT EXISTS idx_payments_ledger_tx_hash
+  ON payments_ledger (tx_hash) WHERE tx_hash IS NOT NULL;
 
 -- 소비된 서명 해시 — 리플레이 방지 (Phase 2-2)
 CREATE TABLE IF NOT EXISTS consumed_signatures (
@@ -40,17 +55,24 @@ CREATE TABLE IF NOT EXISTS consumed_signatures (
   consumed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Access Receipts (Phase 2-3)
+-- Access Receipts (Phase 2-3 + 2-4: hmac 추가)
 CREATE TABLE IF NOT EXISTS access_receipts (
   receipt_id UUID PRIMARY KEY,
   attestation_id TEXT NOT NULL,
   payer TEXT NOT NULL,
-  payment_method TEXT NOT NULL CHECK (payment_method IN ('x402', 'delegated')),
+  payment_method TEXT NOT NULL CHECK (payment_method IN ('smart-wallet')),
   tx_hash TEXT,
   amount_usd_micros BIGINT NOT NULL,
+  hmac TEXT NOT NULL DEFAULT '',
   paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ
 );
+
+-- Phase 2-4: hmac 컬럼 추가 (이미 있으면 무시)
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN hmac TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_receipts_payer ON access_receipts(payer);
 CREATE INDEX IF NOT EXISTS idx_receipts_attestation ON access_receipts(attestation_id);
@@ -66,7 +88,7 @@ CREATE TABLE IF NOT EXISTS pricing_policies (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 결제 원장 (Phase 2-3)
+-- 결제 원장 (Phase 2-3 + 2-4: FK 추가)
 CREATE TABLE IF NOT EXISTS payments_ledger (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attestation_id TEXT NOT NULL,
@@ -74,12 +96,25 @@ CREATE TABLE IF NOT EXISTS payments_ledger (
   amount_usd_micros BIGINT NOT NULL,
   payment_method TEXT NOT NULL,
   tx_hash TEXT,
-  receipt_id UUID,
+  receipt_id UUID REFERENCES access_receipts(receipt_id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_ledger_payer ON payments_ledger(payer);
 CREATE INDEX IF NOT EXISTS idx_ledger_attestation ON payments_ledger(attestation_id);
+
+-- 결제 견적 — 중복 결제 방지 (Phase 2-4)
+CREATE TABLE IF NOT EXISTS payment_quotes (
+  quote_id TEXT PRIMARY KEY,
+  attestation_id TEXT NOT NULL,
+  payer TEXT NOT NULL,
+  amount_usd_micros BIGINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_quotes_payer ON payment_quotes(payer);
 `;
 
 async function migrate() {

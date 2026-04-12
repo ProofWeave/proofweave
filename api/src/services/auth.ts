@@ -177,7 +177,16 @@ export async function rotateApiKey(
       [sigHash, walletAddress.toLowerCase()]
     );
 
-    // 2. 기존 키 폐기
+    // 2. 기존 키의 smart_wallet_address 조회 (이관용)
+    const existingWallet = await client.query(
+      `SELECT smart_wallet_address FROM api_keys
+       WHERE wallet_address = $1 AND revoked_at IS NULL
+       LIMIT 1`,
+      [walletAddress.toLowerCase()]
+    );
+    const smartWalletAddress = existingWallet.rows[0]?.smart_wallet_address ?? null;
+
+    // 3. 기존 키 폐기
     const revokeResult = await client.query(
       `UPDATE api_keys SET revoked_at = NOW()
        WHERE wallet_address = $1 AND revoked_at IS NULL`,
@@ -185,12 +194,12 @@ export async function rotateApiKey(
     );
     const revokedCount = revokeResult.rowCount ?? 0;
 
-    // 3. 새 키 발급
+    // 4. 새 키 발급 (smart_wallet_address 이관)
     const apiKey = generateApiKey();
     const keyHash = hashApiKey(apiKey);
     await client.query(
-      `INSERT INTO api_keys (key_hash, wallet_address) VALUES ($1, $2)`,
-      [keyHash, walletAddress.toLowerCase()]
+      `INSERT INTO api_keys (key_hash, wallet_address, smart_wallet_address) VALUES ($1, $2, $3)`,
+      [keyHash, walletAddress.toLowerCase(), smartWalletAddress]
     );
 
     await client.query("COMMIT");
