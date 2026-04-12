@@ -1,17 +1,28 @@
-import { useState } from 'react';
-import { Bot, Edit3, Sparkles, FileCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bot, Edit3, Sparkles, FileCheck, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 
 type Tab = 'ai' | 'manual';
 type Step = 'input' | 'result' | 'attest';
 
+interface ModelInfo {
+  id: string;
+  label: string;
+  tier: 'free' | 'pro';
+  dailyLimit: number;
+  remaining: number;
+}
+
 interface AnalysisResult {
   result: string;
   model: string;
+  modelLabel: string;
+  tier: string;
   inputTokens: number;
   outputTokens: number;
   estimatedCost: number;
-  dailyRemaining: number;
+  remaining: number;
+  dailyLimit: number;
 }
 
 export function AttestPage() {
@@ -24,18 +35,61 @@ export function AttestPage() {
   const [attestLoading, setAttestLoading] = useState(false);
   const [attestResult, setAttestResult] = useState<string | null>(null);
 
+  // 모델 관련
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelsLoading, setModelsLoading] = useState(true);
+
+  // 모델 목록 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.get<{ models: ModelInfo[] }>('/ai/models');
+        setModels(data.models);
+        // 기본값: 첫 번째 모델
+        if (data.models.length > 0) {
+          setSelectedModel(data.models[0].id);
+        }
+      } catch {
+        console.warn('[Attest] Failed to load models');
+        // fallback
+        setModels([{
+          id: 'gemini-3-flash-preview',
+          label: 'Gemini 3 Flash',
+          tier: 'free',
+          dailyLimit: 10,
+          remaining: 10,
+        }]);
+        setSelectedModel('gemini-3-flash-preview');
+      } finally {
+        setModelsLoading(false);
+      }
+    })();
+  }, []);
+
+  const currentModel = models.find((m) => m.id === selectedModel);
+
   const handleAnalyze = async () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !selectedModel) return;
     setLoading(true);
     setError(null);
     setResult(null);
     try {
       const data = await api.post<AnalysisResult>('/ai/analyze', {
         prompt,
-        model: 'gemini-2.0-flash',
+        model: selectedModel,
       });
       setResult(data);
       setStep('result');
+
+      // 남은 횟수 업데이트
+      setModels((prev) =>
+        prev.map((m) =>
+          m.id === selectedModel
+            ? { ...m, remaining: data.remaining }
+            : m,
+        ),
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
     } finally {
@@ -122,6 +176,59 @@ export function AttestPage() {
 
       {activeTab === 'ai' && step === 'input' && (
         <div className="card">
+          {/* ── 모델 선택 ── */}
+          <div className="form-group">
+            <label className="label">
+              <Bot size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
+              AI 모델 선택
+            </label>
+            <div style={{ position: 'relative' }}>
+              <select
+                className="input"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={modelsLoading}
+                style={{
+                  appearance: 'none',
+                  paddingRight: 36,
+                  cursor: 'pointer',
+                }}
+              >
+                {models.map((m) => (
+                  <option key={m.id} value={m.id} disabled={m.remaining <= 0}>
+                    {m.label} — {m.remaining}/{m.dailyLimit}회 남음
+                    {m.tier === 'pro' ? ' ⭐' : ''}
+                    {m.remaining <= 0 ? ' (소진)' : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={16}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  opacity: 0.5,
+                }}
+              />
+            </div>
+
+            {/* 모델 정보 뱃지 */}
+            {currentModel && (
+              <div className="flex gap-8 mt-8" style={{ flexWrap: 'wrap' }}>
+                <span className={`badge ${currentModel.tier === 'pro' ? 'badge-warning' : 'badge-info'}`}>
+                  {currentModel.tier === 'pro' ? '⭐ Pro' : '🆓 Free'}
+                </span>
+                <span className={`badge ${currentModel.remaining <= 0 ? 'badge-error' : currentModel.remaining <= 2 ? 'badge-warning' : 'badge-success'}`}>
+                  {currentModel.remaining}/{currentModel.dailyLimit}회 남음
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ── 프롬프트 입력 ── */}
           <div className="form-group">
             <label className="label">
               <Sparkles size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
@@ -146,12 +253,12 @@ export function AttestPage() {
             <button
               className="btn btn-primary"
               onClick={handleAnalyze}
-              disabled={loading || !prompt.trim()}
+              disabled={loading || !prompt.trim() || (currentModel?.remaining ?? 0) <= 0}
             >
               {loading ? <span className="spinner" /> : <><Sparkles size={16} /> 분석 실행</>}
             </button>
             <span className="text-xs text-muted">
-              모델: Gemini 2.0 Flash · 무료 (10회/일)
+              {currentModel?.label ?? '모델 로딩 중...'}
             </span>
           </div>
         </div>
@@ -161,7 +268,10 @@ export function AttestPage() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">분석 결과</span>
-            <div className="flex gap-8">
+            <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
+              <span className={`badge ${result.tier === 'pro' ? 'badge-warning' : 'badge-purple'}`}>
+                {result.modelLabel}
+              </span>
               <span className="badge badge-info">
                 입력: {result.inputTokens} 토큰
               </span>
@@ -197,7 +307,7 @@ export function AttestPage() {
           </div>
 
           <p className="text-xs text-muted mt-8">
-            남은 분석 횟수: {result.dailyRemaining}회/일 · 모델: {result.model}
+            남은 횟수: {result.remaining}/{result.dailyLimit}회 · {result.modelLabel}
           </p>
         </div>
       )}

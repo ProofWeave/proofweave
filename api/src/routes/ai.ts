@@ -5,7 +5,72 @@ import { authenticate } from "../middleware/authenticate.js";
 
 export const aiRouter = Router();
 
-// Gemini 클라이언트 (lazy init)
+// ── 지원 모델 목록 + 설정 ────────────────────────────────
+interface ModelConfig {
+  id: string;
+  label: string;
+  dailyLimit: number;
+  tier: "free" | "pro";
+  inputCostPer1M: number;   // $/1M tokens
+  outputCostPer1M: number;
+}
+
+const SUPPORTED_MODELS: ModelConfig[] = [
+  // ── Gemini 3.x (최신) ────────────────────────────────
+  {
+    id: "gemini-3.1-pro-preview",
+    label: "Gemini 3.1 Pro",
+    dailyLimit: 3,
+    tier: "pro",
+    inputCostPer1M: 2.50,
+    outputCostPer1M: 15.00,
+  },
+  {
+    id: "gemini-3-flash-preview",
+    label: "Gemini 3 Flash",
+    dailyLimit: 10,
+    tier: "free",
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.60,
+  },
+  {
+    id: "gemini-3.1-flash-lite-preview",
+    label: "Gemini 3.1 Flash Lite",
+    dailyLimit: 10,
+    tier: "free",
+    inputCostPer1M: 0.075,
+    outputCostPer1M: 0.30,
+  },
+  // ── Gemini 2.5 (Stable) ──────────────────────────────
+  {
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
+    dailyLimit: 10,
+    tier: "free",
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.60,
+  },
+  {
+    id: "gemini-2.5-pro",
+    label: "Gemini 2.5 Pro",
+    dailyLimit: 3,
+    tier: "pro",
+    inputCostPer1M: 1.25,
+    outputCostPer1M: 10.00,
+  },
+  {
+    id: "gemini-2.5-flash-lite",
+    label: "Gemini 2.5 Flash Lite",
+    dailyLimit: 10,
+    tier: "free",
+    inputCostPer1M: 0.075,
+    outputCostPer1M: 0.30,
+  },
+];
+
+const MODEL_MAP = new Map(SUPPORTED_MODELS.map((m) => [m.id, m]));
+
+// ── Gemini 클라이언트 (lazy init) ────────────────────────
 let genaiClient: GoogleGenAI | null = null;
 
 function getGenAI(): GoogleGenAI {
@@ -18,34 +83,54 @@ function getGenAI(): GoogleGenAI {
   return genaiClient;
 }
 
-// 일일 rate limit (IP + API Key 기반, 10회/일)
+// ── 모델별 일일 한도 (사용자 × 모델) ─────────────────────
+// key = `${userKey}:${modelId}`
 const dailyUsage = new Map<string, { count: number; resetAt: number }>();
-const DAILY_LIMIT = 10;
 
-function checkDailyLimit(key: string): boolean {
+function checkModelLimit(userKey: string, modelId: string, limit: number): { allowed: boolean; remaining: number } {
+  const compositeKey = `${userKey}:${modelId}`;
   const now = Date.now();
-  const entry = dailyUsage.get(key);
+  const entry = dailyUsage.get(compositeKey);
 
   if (!entry || now > entry.resetAt) {
-    // 자정까지 리셋
     const tomorrow = new Date();
     tomorrow.setHours(24, 0, 0, 0);
-    dailyUsage.set(key, { count: 1, resetAt: tomorrow.getTime() });
-    return true;
+    dailyUsage.set(compositeKey, { count: 1, resetAt: tomorrow.getTime() });
+    return { allowed: true, remaining: limit - 1 };
   }
 
-  if (entry.count >= DAILY_LIMIT) {
-    return false;
+  if (entry.count >= limit) {
+    return { allowed: false, remaining: 0 };
   }
 
   entry.count++;
-  return true;
+  return { allowed: true, remaining: limit - entry.count };
 }
 
-/**
- * POST /ai/analyze
- * Gemini 3 Flash로 분석 실행 후 결과 반환
- */
+function getRemaining(userKey: string, modelId: string, limit: number): number {
+  const compositeKey = `${userKey}:${modelId}`;
+  const now = Date.now();
+  const entry = dailyUsage.get(compositeKey);
+  if (!entry || now > entry.resetAt) return limit;
+  return Math.max(0, limit - entry.count);
+}
+
+// ── GET /ai/models — 사용 가능한 모델 목록 ────────────────
+aiRouter.get("/ai/models", authenticate, (req, res) => {
+  const userKey = req.body.walletAddress || req.ip || "unknown";
+
+  const models = SUPPORTED_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    tier: m.tier,
+    dailyLimit: m.dailyLimit,
+    remaining: getRemaining(userKey, m.id, m.dailyLimit),
+  }));
+
+  res.json({ models });
+});
+
+// ── POST /ai/analyze — 분석 실행 ──────────────────────────
 aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
   const { prompt, model } = req.body;
 
@@ -60,48 +145,63 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
     return;
   }
 
-  // 2. Rate limit
-  const rateLimitKey = req.body.walletAddress || req.ip || "unknown";
-  if (!checkDailyLimit(rateLimitKey)) {
-    res.status(429).json({
-      error: "Daily analysis limit reached (10/day)",
-      limit: DAILY_LIMIT,
+  // 2. 모델 검증
+  const modelId = model || "gemini-3-flash-preview";
+  const modelConfig = MODEL_MAP.get(modelId);
+
+  if (!modelConfig) {
+    res.status(400).json({
+      error: `Unsupported model: ${modelId}`,
+      supported: SUPPORTED_MODELS.map((m) => m.id),
     });
     return;
   }
 
-  // 3. Gemini 호출
+  // 3. 모델별 Rate limit
+  const userKey = req.body.walletAddress || req.ip || "unknown";
+  const { allowed, remaining } = checkModelLimit(userKey, modelId, modelConfig.dailyLimit);
+
+  if (!allowed) {
+    res.status(429).json({
+      error: `Daily limit reached for ${modelConfig.label} (${modelConfig.dailyLimit}/day)`,
+      model: modelId,
+      limit: modelConfig.dailyLimit,
+      remaining: 0,
+    });
+    return;
+  }
+
+  // 4. Gemini 호출
   try {
     const ai = getGenAI();
-    const modelName = model || "gemini-2.0-flash";
 
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: modelId,
       contents: prompt,
     });
 
     const text = response.text ?? "";
 
-    // 토큰 사용량 추출
+    // 토큰 사용량
     const usage = response.usageMetadata;
     const inputTokens = usage?.promptTokenCount ?? 0;
     const outputTokens = usage?.candidatesTokenCount ?? 0;
 
-    // 비용 추정 (Gemini Flash 기준)
-    const inputCost = (inputTokens / 1_000_000) * 0.10;  // $0.10/1M
-    const outputCost = (outputTokens / 1_000_000) * 0.40; // $0.40/1M
+    // 비용 추정
+    const inputCost = (inputTokens / 1_000_000) * modelConfig.inputCostPer1M;
+    const outputCost = (outputTokens / 1_000_000) * modelConfig.outputCostPer1M;
     const estimatedCost = +(inputCost + outputCost).toFixed(6);
 
     res.json({
       result: text,
-      model: modelName,
+      model: modelId,
+      modelLabel: modelConfig.label,
+      tier: modelConfig.tier,
       inputTokens,
       outputTokens,
       estimatedCost,
-      dailyRemaining: (() => {
-        const entry = dailyUsage.get(rateLimitKey);
-        return entry ? DAILY_LIMIT - entry.count : DAILY_LIMIT;
-      })(),
+      remaining,
+      dailyLimit: modelConfig.dailyLimit,
     });
   } catch (err: unknown) {
     console.error("[ai/analyze] Gemini error:", err);

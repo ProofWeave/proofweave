@@ -114,7 +114,7 @@ sequenceDiagram
 | **Database** | Supabase (PostgreSQL) | attestations, api_keys, 결제 원장 |
 | **Storage** | Pinata (IPFS) | 암호화된 데이터 분산 저장 |
 | **Wallet** | Coinbase CDP (ERC-4337) | 에이전트용 Smart Account 자동 결제 |
-| **AI** | Gemini 2.0 Flash | DeFi 보안 분석 (토큰 사용량 추적) |
+| **AI** | Gemini 3.1 Pro / 3 Flash / 2.5 Pro / 2.5 Flash | 멀티모델 선택, 모델별 일일 한도 (Pro 3회, Flash 10회) |
 | **Crypto** | AES-256-GCM + HKDF-SHA256 | 서버사이드 암복호화 (attestation별 파생키) |
 | **Deploy** | Vercel (Frontend) + GCP Cloud Run (API) | Docker 멀티스테이지 빌드 |
 
@@ -211,7 +211,19 @@ proofweave/
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/ai/analyze` | POST | API Key | Gemini 2.0 Flash 분석 (10회/일) |
+| `/ai/models` | GET | API Key | 사용 가능 모델 목록 + 잔여 횟수 조회 |
+| `/ai/analyze` | POST | API Key | Gemini 멀티모델 분석 (모델별 일일 한도) |
+
+**지원 모델:**
+
+| 모델 | Tier | 일일 한도 |
+|------|------|----------|
+| Gemini 3.1 Pro | ⭐ Pro | 3회 |
+| Gemini 3 Flash | 🆓 Free | 10회 |
+| Gemini 3.1 Flash Lite | 🆓 Free | 10회 |
+| Gemini 2.5 Flash (Stable) | 🆓 Free | 10회 |
+| Gemini 2.5 Pro | ⭐ Pro | 3회 |
+| Gemini 2.5 Flash Lite | 🆓 Free | 10회 |
 
 ---
 
