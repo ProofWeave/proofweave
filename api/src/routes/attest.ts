@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { createAttestation } from "../services/attestation.js";
-import { operatorAccount } from "../config/chain.js";
 
 export const attestRouter = Router();
 
@@ -11,6 +10,10 @@ export const attestRouter = Router();
  *
  * Headers: X-API-Key (required)
  * Body: { data: object, aiModel: string }
+ *
+ * creator 결정 로직:
+ * - CLI/지갑 사용자 (0x...): 자신의 EVM 주소를 그대로 사용
+ * - 웹 사용자 (web:email): CDP Smart Wallet 주소를 사용 (register-web 시 자동 생성)
  */
 attestRouter.post("/attest", authenticate, async (req, res) => {
   const { data, aiModel } = req.body;
@@ -26,11 +29,23 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
   }
 
   const apiKeyOwner = req.apiKeyOwner!;
-
-  // 웹 사용자(web:email)는 EVM 주소가 아니므로 operator 주소를 creator로 사용
-  // CLI/지갑 사용자(0x...)는 자신의 주소를 그대로 사용
   const isWebUser = apiKeyOwner.startsWith("web:");
-  const creator = isWebUser ? operatorAccount.address : apiKeyOwner;
+
+  // creator 결정: 웹 사용자 → Smart Wallet, CLI → 자신의 주소
+  let creator: string;
+  if (isWebUser) {
+    const smartWallet = req.smartWalletAddress;
+    if (!smartWallet) {
+      res.status(403).json({
+        error: "No smart wallet associated with this account. Re-register to create one.",
+        hint: "POST /auth/register-web to generate a CDP Smart Wallet",
+      });
+      return;
+    }
+    creator = smartWallet;
+  } else {
+    creator = apiKeyOwner;
+  }
 
   try {
     const result = await createAttestation({

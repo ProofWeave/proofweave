@@ -6,6 +6,7 @@ declare global {
   namespace Express {
     interface Request {
       apiKeyOwner?: string;
+      smartWalletAddress?: string | null;
     }
   }
 }
@@ -35,5 +36,6 @@ export async function authenticate(
 
   // 인증된 지갑 주소를 request에 첨부
   req.apiKeyOwner = result.walletAddress;
+  req.smartWalletAddress = result.smartWalletAddress;
   next();
 }

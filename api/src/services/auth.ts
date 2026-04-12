@@ -133,18 +133,21 @@ export async function createApiKey(walletAddress: string): Promise<string> {
 /** API Key로 소유자 조회 (null = 유효하지 않음) */
 export async function verifyApiKey(
   key: string
-): Promise<{ walletAddress: string } | null> {
+): Promise<{ walletAddress: string; smartWalletAddress: string | null } | null> {
   if (!key.startsWith(API_KEY_PREFIX)) return null;
 
   const keyHash = hashApiKey(key);
   const result = await pool.query(
-    `SELECT wallet_address FROM api_keys
+    `SELECT wallet_address, smart_wallet_address FROM api_keys
      WHERE key_hash = $1 AND revoked_at IS NULL`,
     [keyHash]
   );
 
   if (result.rows.length === 0) return null;
-  return { walletAddress: result.rows[0].wallet_address };
+  return {
+    walletAddress: result.rows[0].wallet_address,
+    smartWalletAddress: result.rows[0].smart_wallet_address ?? null,
+  };
 }
 
 /** 특정 지갑의 모든 API Key 무효화 */
