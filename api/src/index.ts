@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { env } from "./config/env.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
@@ -6,12 +7,19 @@ import { pricingRouter } from "./routes/pricing.js";
 import { walletRouter } from "./routes/wallet.js";
 import { attestRouter } from "./routes/attest.js";
 import { attestationsRouter } from "./routes/attestations.js";
+import { aiRouter } from "./routes/ai.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 const app = express();
 
 // ── Global Middleware ───────────────────────────────────────
+app.use(cors({
+  origin: env.NODE_ENV === "production"
+    ? ["https://proofweave.vercel.app"]
+    : [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(rateLimit);
 
@@ -28,6 +36,7 @@ app.use(walletRouter);     // GET /wallet/balance, GET /wallet/address
 // ── Attestation Routes (Phase 2-5) ──────────────────────────
 app.use(attestRouter);         // POST /attest (authenticated)
 app.use(attestationsRouter);   // GET /attestations/:id, /detail, /verify, /search
+app.use(aiRouter);             // POST /ai/analyze (authenticated)
 
 // ── Error Handler ───────────────────────────────────────────
 app.use(errorHandler);

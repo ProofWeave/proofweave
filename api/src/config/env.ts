@@ -70,6 +70,13 @@ const envSchema = z.object({
 
   // 데이터 암호화 마스터 키 (openssl rand -hex 32, HKDF 파생용)
   DATA_ENCRYPTION_KEY: z.string().length(64, "DATA_ENCRYPTION_KEY must be 64 hex chars (32 bytes)").optional(),
+
+  // Supabase Auth
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+
+  // Gemini (LLM 호출용)
+  GEMINI_API_KEY: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

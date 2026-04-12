@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { createClient } from "@supabase/supabase-js";
+import { env } from "../config/env.js";
 import {
   parseSignatureMessage,
   isTimestampValid,
@@ -152,5 +154,73 @@ authRouter.post("/auth/rotate", async (req, res) => {
     apiKey,
     revokedCount,
     message: "Previous keys have been revoked. Store this new key securely.",
+  });
+});
+
+/**
+ * POST /auth/register-web
+ * Supabase JWT → API Key 발급 (웹 프론트 전용)
+ * Authorization: Bearer <supabase-access-token>
+ */
+authRouter.post("/auth/register-web", async (req, res) => {
+  // 1. Supabase 설정 확인
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    res.status(503).json({ error: "Supabase Auth not configured" });
+    return;
+  }
+
+  // 2. Bearer token 추출
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Authorization header required (Bearer token)" });
+    return;
+  }
+  const token = authHeader.slice(7);
+
+  // 3. Supabase JWT 검증
+  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !user) {
+    res.status(401).json({ error: "Invalid or expired Supabase token" });
+    return;
+  }
+
+  // 4. 이메일을 wallet_address 자리에 사용 (web: 접두사로 구분)
+  const identifier = `web:${user.email || user.id}`;
+
+  // 5. 기존 키가 있으면 반환 대신 기존 키 폐기 + 새 발급
+  if (await hasActiveApiKey(identifier)) {
+    // 기존 키 rotate
+    const { apiKey, revokedCount } = await rotateApiKey(identifier, `supabase:${user.id}`);
+    res.status(200).json({
+      apiKey,
+      userId: user.id,
+      email: user.email,
+      revokedCount,
+      message: "Existing key rotated. Store this new key securely.",
+    });
+    return;
+  }
+
+  // 6. 새 API Key 발급
+  const apiKey = await createApiKey(identifier);
+
+  // 7. CDP Smart Wallet 생성 시도
+  let smartWalletAddress: string | null = null;
+  try {
+    const { createSmartWallet } = await import("../services/wallet.js");
+    smartWalletAddress = await createSmartWallet(identifier);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn("[auth/register-web] Smart wallet creation failed (non-fatal):", errMsg);
+  }
+
+  res.status(201).json({
+    apiKey,
+    userId: user.id,
+    email: user.email,
+    smartWalletAddress,
+    message: "API key issued. Store securely.",
   });
 });
