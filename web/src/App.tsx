@@ -9,6 +9,7 @@ import { AttestPage } from './pages/AttestPage';
 import { ExplorerPage } from './pages/ExplorerPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminDashboard } from './pages/AdminDashboard';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient({
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="explorer" element={<ExplorerPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="admin" element={<AdminDashboard />} />
             </Route>
 
             {/* Fallback */}

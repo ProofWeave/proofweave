@@ -7,6 +7,7 @@ import {
   Search,
   BarChart3,
   Settings,
+  ShieldCheck,
   LogOut,
   Menu,
   X,
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/attest', icon: FileCheck, label: 'Attest' },
   { to: '/explorer', icon: Search, label: 'Explorer' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/admin', icon: ShieldCheck, label: 'Admin Audit' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
