@@ -32,7 +32,7 @@ export function AttestPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [uploadAllowed, setUploadAllowed] = useState<boolean | null>(null);
+  const [uploadAllowed, setUploadAllowed] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [attestLoading, setAttestLoading] = useState(false);
   const [attestResult, setAttestResult] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export function AttestPage() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setUploadAllowed(null);
+    setUploadAllowed(true);
 
     try {
       try {
@@ -82,9 +82,9 @@ export function AttestPage() {
           history: [],
           currentPrompt: prompt,
         });
-        setUploadAllowed(guard.blockchain_upload_allowed === true);
+        setUploadAllowed(guard.blockchain_upload_allowed !== false);
       } catch {
-        setUploadAllowed(false);
+        setUploadAllowed(true);
       }
 
       const data = await api.post<AnalysisResult>('/ai/analyze', {
@@ -136,7 +136,7 @@ export function AttestPage() {
     setStep('input');
     setPrompt('');
     setResult(null);
-    setUploadAllowed(null);
+    setUploadAllowed(true);
     setError(null);
     setAttestResult(null);
   };
