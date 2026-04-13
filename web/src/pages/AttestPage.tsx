@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bot, Edit3, Sparkles, FileCheck, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
+import { evaluatePromptGuard } from '../lib/taintGuard';
 
 type Tab = 'ai' | 'manual';
 type Step = 'input' | 'result' | 'attest';
@@ -31,28 +32,25 @@ export function AttestPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [uploadAllowed, setUploadAllowed] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attestLoading, setAttestLoading] = useState(false);
   const [attestResult, setAttestResult] = useState<string | null>(null);
 
-  // 모델 관련
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [modelsLoading, setModelsLoading] = useState(true);
 
-  // 모델 목록 로드
   useEffect(() => {
     (async () => {
       try {
         const data = await api.get<{ models: ModelInfo[] }>('/ai/models');
         setModels(data.models);
-        // 기본값: 첫 번째 모델
         if (data.models.length > 0) {
           setSelectedModel(data.models[0].id);
         }
       } catch {
         console.warn('[Attest] Failed to load models');
-        // fallback
         setModels([{
           id: 'gemini-3-flash-preview',
           label: 'Gemini 3 Flash',
@@ -71,10 +69,24 @@ export function AttestPage() {
 
   const handleAnalyze = async () => {
     if (!prompt.trim() || !selectedModel) return;
+
     setLoading(true);
     setError(null);
     setResult(null);
+    setUploadAllowed(null);
+
     try {
+      try {
+        const guard = await evaluatePromptGuard({
+          conversationId: crypto.randomUUID(),
+          history: [],
+          currentPrompt: prompt,
+        });
+        setUploadAllowed(guard.blockchain_upload_allowed === true);
+      } catch {
+        setUploadAllowed(false);
+      }
+
       const data = await api.post<AnalysisResult>('/ai/analyze', {
         prompt,
         model: selectedModel,
@@ -82,7 +94,6 @@ export function AttestPage() {
       setResult(data);
       setStep('result');
 
-      // 남은 횟수 업데이트
       setModels((prev) =>
         prev.map((m) =>
           m.id === selectedModel
@@ -98,7 +109,8 @@ export function AttestPage() {
   };
 
   const handleAttest = async () => {
-    if (!result) return;
+    if (!result || uploadAllowed !== true) return;
+
     setAttestLoading(true);
     try {
       const data = await api.post<{ attestationId: string }>('/attest', {
@@ -124,6 +136,7 @@ export function AttestPage() {
     setStep('input');
     setPrompt('');
     setResult(null);
+    setUploadAllowed(null);
     setError(null);
     setAttestResult(null);
   };
@@ -152,7 +165,6 @@ export function AttestPage() {
         </button>
       </div>
 
-      {/* Stepper */}
       {activeTab === 'ai' && (() => {
         const stepIdx = step === 'input' ? 0 : step === 'result' ? 1 : 2;
         return (
@@ -177,7 +189,6 @@ export function AttestPage() {
 
       {activeTab === 'ai' && step === 'input' && (
         <div className="card">
-          {/* ── 모델 선택 ── */}
           <div className="form-group">
             <label className="label">
               <Bot size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
@@ -216,7 +227,6 @@ export function AttestPage() {
               />
             </div>
 
-            {/* 모델 정보 뱃지 */}
             {currentModel && (
               <div className="flex gap-8 mt-8" style={{ flexWrap: 'wrap' }}>
                 <span className={`badge ${currentModel.tier === 'pro' ? 'badge-warning' : 'badge-info'}`}>
@@ -229,7 +239,6 @@ export function AttestPage() {
             )}
           </div>
 
-          {/* ── 프롬프트 입력 ── */}
           <div className="form-group">
             <label className="label">
               <Sparkles size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
@@ -282,6 +291,9 @@ export function AttestPage() {
               <span className="badge badge-success">
                 예상 비용: ${result.estimatedCost}
               </span>
+              <span className={`badge ${uploadAllowed ? 'badge-success' : 'badge-error'}`}>
+                {uploadAllowed ? '블록체인 업로드 가능' : '블록체인 업로드 차단'}
+              </span>
             </div>
           </div>
 
@@ -299,7 +311,11 @@ export function AttestPage() {
           </pre>
 
           <div className="mt-24 flex gap-12">
-            <button className="btn btn-primary" onClick={handleAttest} disabled={attestLoading}>
+            <button
+              className="btn btn-primary"
+              onClick={handleAttest}
+              disabled={attestLoading || uploadAllowed !== true}
+            >
               {attestLoading ? <span className="spinner" /> : <><FileCheck size={16} /> 이 결과를 Attest</>}
             </button>
             <button className="btn btn-secondary" onClick={resetFlow}>

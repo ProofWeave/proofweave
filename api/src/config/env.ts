@@ -77,6 +77,9 @@ const envSchema = z.object({
 
   // Gemini (LLM 호출용)
   GEMINI_API_KEY: z.string().min(1).optional(),
+
+  // Prompt Guard (별도 Python 서비스)
+  TAINT_GUARD_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
