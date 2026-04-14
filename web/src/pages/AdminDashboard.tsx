@@ -120,7 +120,7 @@ export function AdminDashboard() {
     for (let i = 0; i < selectedRows.length; i += 1) {
       const row = selectedRows[i];
       try {
-        const verify = await verifyContentHash(row.contentHash);
+        const verify = await verifyContentHash(row.contentHash, row.creator);
         const status = toVerifyResult(verify.verified ?? verify.valid ?? verify.status);
         result[status] += 1;
         logs.push({

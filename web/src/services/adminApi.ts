@@ -31,6 +31,6 @@ export async function getAttestationDetail(attestationId: string) {
   return api.get<AttestationDetail>(`/attestations/${attestationId}`);
 }
 
-export async function verifyContentHash(contentHash: string) {
-  return api.get<VerifyResponse>(`/verify/${contentHash}`);
+export async function verifyContentHash(contentHash: string, creator: string) {
+  return api.get<VerifyResponse>(`/verify/${contentHash}?creator=${encodeURIComponent(creator)}`);
 }
