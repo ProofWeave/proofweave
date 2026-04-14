@@ -8,6 +8,7 @@ import { walletRouter } from "./routes/wallet.js";
 import { attestRouter } from "./routes/attest.js";
 import { attestationsRouter } from "./routes/attestations.js";
 import { aiRouter } from "./routes/ai.js";
+import { taintGuardRouter } from "./routes/taintGuard.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
@@ -37,6 +38,7 @@ app.use(walletRouter);     // GET /wallet/balance, GET /wallet/address
 app.use(attestRouter);         // POST /attest (authenticated)
 app.use(attestationsRouter);   // GET /attestations/:id, /detail, /verify, /search
 app.use(aiRouter);             // POST /ai/analyze (authenticated)
+app.use(taintGuardRouter);     // POST /taint/evaluate (authenticated)
 
 // ── Error Handler ───────────────────────────────────────────
 app.use(errorHandler);
