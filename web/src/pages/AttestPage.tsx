@@ -76,16 +76,23 @@ export function AttestPage() {
     setUploadAllowed(true);
 
     try {
-      try {
-        const guard = await evaluatePromptGuard({
-          conversationId: crypto.randomUUID(),
-          history: [],
-          currentPrompt: prompt,
-        });
-        setUploadAllowed(guard.blockchain_upload_allowed !== false);
-      } catch {
-        setUploadAllowed(true);
+      let guard: { blockchain_upload_allowed: boolean } | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          guard = await evaluatePromptGuard({
+            conversationId: crypto.randomUUID(),
+            history: [],
+            currentPrompt: prompt,
+          });
+          break;
+        } catch {
+          if (attempt === 0) {
+            console.warn('[Attest] Guard check failed, retrying...');
+          }
+        }
       }
+      // fail-close: Guard 실패 시 업로드 차단
+      setUploadAllowed(guard ? guard.blockchain_upload_allowed !== false : false);
 
       const data = await api.post<AnalysisResult>('/ai/analyze', {
         prompt,
