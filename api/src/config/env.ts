@@ -80,6 +80,7 @@ const envSchema = z.object({
 
   // Prompt Guard (별도 Python 서비스)
   TAINT_GUARD_URL: z.string().url().optional(),
+  TAINT_GUARD_TOKEN: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

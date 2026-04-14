@@ -16,7 +16,10 @@ async function callGuardService(
   try {
     return await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(env.TAINT_GUARD_TOKEN ? { "Authorization": `Bearer ${env.TAINT_GUARD_TOKEN}` } : {}),
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(GUARD_TIMEOUT_MS),
     });
