@@ -77,6 +77,8 @@ export function AttestPage() {
 
     try {
       let guard: { blockchain_upload_allowed: boolean } | null = null;
+      let guardUnavailable = false; // Guard API 자체가 없음 (404 = Cloud Run 미배포)
+
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           guard = await evaluatePromptGuard({
@@ -85,15 +87,29 @@ export function AttestPage() {
             currentPrompt: prompt,
           });
           break;
-        } catch {
+        } catch (err: unknown) {
+          // 404 = Guard 라우트가 API에 없음 (미배포 환경) → 허용
+          const is404 = err instanceof Error && err.message.includes('404');
+          if (is404) {
+            guardUnavailable = true;
+            break;
+          }
           if (attempt === 0) {
             console.warn('[Attest] Guard check failed, retrying...');
           }
         }
       }
-      // Guard가 명시적으로 차단한 경우에만 업로드 금지
-      // Guard 서비스 미배포/연결 불가 시에는 기본 허용
-      setUploadAllowed(guard?.blockchain_upload_allowed !== false);
+
+      if (guardUnavailable) {
+        // Guard 미배포 환경 → 기본 허용 (Guard 없이 운영)
+        setUploadAllowed(true);
+      } else if (guard) {
+        // Guard 정상 응답 → 결과 따름
+        setUploadAllowed(guard.blockchain_upload_allowed !== false);
+      } else {
+        // Guard 연결 실패 (재시도 후에도) → fail-close 차단
+        setUploadAllowed(false);
+      }
 
       const data = await api.post<AnalysisResult>('/ai/analyze', {
         prompt,
