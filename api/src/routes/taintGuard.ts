@@ -35,7 +35,8 @@ async function callGuardService(
 
 taintGuardRouter.post("/taint/evaluate", authenticate, async (req, res) => {
   if (!env.TAINT_GUARD_URL) {
-    res.status(503).json({ error: "TAINT_GUARD_URL is not configured" });
+    // Guard 서비스 미배포 환경 → 기본 허용 (분석은 계속 진행)
+    res.status(200).json({ blockchain_upload_allowed: true, guard_available: false });
     return;
   }
 

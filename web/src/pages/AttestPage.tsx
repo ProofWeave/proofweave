@@ -91,8 +91,9 @@ export function AttestPage() {
           }
         }
       }
-      // fail-close: Guard 실패 시 업로드 차단
-      setUploadAllowed(guard ? guard.blockchain_upload_allowed !== false : false);
+      // Guard가 명시적으로 차단한 경우에만 업로드 금지
+      // Guard 서비스 미배포/연결 불가 시에는 기본 허용
+      setUploadAllowed(guard?.blockchain_upload_allowed !== false);
 
       const data = await api.post<AnalysisResult>('/ai/analyze', {
         prompt,
