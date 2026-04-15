@@ -8,6 +8,8 @@
 # ============================================================
 set -euo pipefail
 
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 export PATH="/opt/homebrew/bin:/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 
 PROJECT_ID="proofweave"
@@ -60,6 +62,8 @@ deploy_web() {
   ok "빌드 성공"
 
   log "2/2 Vercel 프로덕션 배포..."
+  # Vercel 프로젝트 설정은 루트 기준이므로 루트에서 실행
+  cd "$ROOT_DIR"
   npx vercel --prod --yes || fail "Vercel 배포 실패"
   ok "Vercel 배포 완료: https://proofweave.vercel.app"
 }
