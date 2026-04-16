@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { isAdminWhitelisted } from '../config/adminWhitelist';
 import {
   LayoutDashboard,
   FileCheck,
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
 export function AppLayout() {
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const canAccessAdmin = isAdminWhitelisted(user);
 
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
@@ -48,7 +50,9 @@ export function AppLayout() {
         </div>
 
         <nav className="sidebar-nav" role="navigation" aria-label="Main">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          {NAV_ITEMS
+            .filter((item) => (item.to === '/admin' ? canAccessAdmin : true))
+            .map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -59,7 +63,7 @@ export function AppLayout() {
               <Icon size={18} />
               {label}
             </NavLink>
-          ))}
+            ))}
         </nav>
 
         <div className="sidebar-user">
