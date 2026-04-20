@@ -15,11 +15,22 @@ walletRouter.post("/wallet/create", authenticate, async (req, res) => {
     return;
   }
 
-  // 이미 존재하면 기존 주소 반환
+  // 기존 Smart Wallet 존재 + EOA도 있으면 → 기존 반환
   const existing = await getSmartWalletAddress(owner);
   if (existing) {
-    res.status(200).json({ smartWalletAddress: existing, created: false });
-    return;
+    // EOA가 있는지 확인 (없으면 재생성 필요)
+    const { pool } = await import("../services/db.js");
+    const eoaCheck = await pool.query(
+      `SELECT eoa_address FROM api_keys
+       WHERE wallet_address = $1 AND smart_wallet_address = $2 AND revoked_at IS NULL LIMIT 1`,
+      [owner.toLowerCase(), existing.toLowerCase()]
+    );
+    if (eoaCheck.rows[0]?.eoa_address) {
+      res.status(200).json({ smartWalletAddress: existing, created: false });
+      return;
+    }
+    // EOA 없음 → 재생성 (아래로 fall-through)
+    console.warn(`[wallet] Smart wallet ${existing} has no EOA. Recreating...`);
   }
 
   try {
