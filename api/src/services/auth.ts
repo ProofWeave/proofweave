@@ -122,6 +122,13 @@ export async function createApiKey(walletAddress: string): Promise<string> {
   const apiKey = generateApiKey();
   const keyHash = hashApiKey(apiKey);
 
+  // 동시 요청 방어: 기존 active 키가 있으면 먼저 revoke
+  await pool.query(
+    `UPDATE api_keys SET revoked_at = NOW()
+     WHERE wallet_address = $1 AND revoked_at IS NULL`,
+    [walletAddress.toLowerCase()]
+  );
+
   await pool.query(
     `INSERT INTO api_keys (key_hash, wallet_address) VALUES ($1, $2)`,
     [keyHash, walletAddress.toLowerCase()]
