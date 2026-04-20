@@ -1,6 +1,6 @@
 import { http, createConfig } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import { injected, walletConnect } from 'wagmi/connectors';
+import { injected } from 'wagmi/connectors';
 
 // Base Sepolia USDC 컨트랙트 주소
 export const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const;
