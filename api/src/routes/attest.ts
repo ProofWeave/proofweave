@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { createAttestation } from "../services/attestation.js";
+import { setPrice } from "../services/pricing.js";
 
 export const attestRouter = Router();
 
@@ -16,7 +17,7 @@ export const attestRouter = Router();
  * - 웹 사용자 (web:email): CDP Smart Wallet 주소를 사용 (register-web 시 자동 생성)
  */
 attestRouter.post("/attest", authenticate, async (req, res) => {
-  const { data, aiModel } = req.body;
+  const { data, aiModel, priceUsdMicros } = req.body;
 
   // 필수 필드 검증
   if (!data || typeof data !== "object") {
@@ -54,6 +55,12 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       aiModel,
     });
 
+    // priceUsdMicros가 지정된 경우 자동 가격 설정
+    let pricing = null;
+    if (typeof priceUsdMicros === "number" && priceUsdMicros > 0) {
+      pricing = await setPrice(result.attestationId, creator, priceUsdMicros);
+    }
+
     res.status(201).json({
       attestationId: result.attestationId,
       contentHash: result.contentHash,
@@ -62,6 +69,9 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       creator,
       aiModel,
       submittedBy: isWebUser ? apiKeyOwner : undefined,
+      pricing: pricing
+        ? { priceUsdMicros: pricing.priceUsdMicros, priceUsd: (pricing.priceUsdMicros / 1_000_000).toFixed(6) }
+        : undefined,
       message: "Attestation created and recorded on-chain",
     });
   } catch (err: unknown) {
