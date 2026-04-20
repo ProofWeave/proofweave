@@ -11,6 +11,8 @@ interface AttestationPurchaseModalProps {
     aiModel: string;
   };
   onClose: () => void;
+  /** 이미 구매한 attestation인지 (Explorer에서 전달) */
+  alreadyPurchased?: boolean;
 }
 
 interface PricingInfo {
@@ -41,18 +43,39 @@ export function AttestationPurchaseModal({
   attestationId,
   attestation,
   onClose,
+  alreadyPurchased = false,
 }: AttestationPurchaseModalProps) {
   const [state, setState] = useState<ModalState>({ step: 'loading' });
   const [copied, setCopied] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
 
-  // 가격 조회
+  // 구매 완료된 항목: 바로 상세 조회 시도
+  // 미구매 항목: 가격 조회 먼저
   useEffect(() => {
     if (!open || !attestationId) return;
-    setState({ step: 'loading' });
 
+    if (alreadyPurchased) {
+      // 이미 구매 → 바로 detail 호출 (receipt 있으므로 결제 안 됨)
+      setState({ step: 'purchasing' });
+      api.get<DetailData>(`/attestations/${attestationId}/detail`)
+        .then((data) => setState({ step: 'success', data }))
+        .catch((err) => {
+          if (err instanceof PaymentRequiredError) {
+            // receipt 만료 등 → pricing으로 폴백
+            fetchPricing(attestationId);
+          } else {
+            setState({ step: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
+          }
+        });
+    } else {
+      fetchPricing(attestationId);
+    }
+  }, [open, attestationId, alreadyPurchased]);
+
+  const fetchPricing = (id: string) => {
+    setState({ step: 'loading' });
     api
-      .get<{ priceUsdMicros: number; priceUsd: string; currency: string }>(`/pricing/${attestationId}`)
+      .get<{ priceUsdMicros: number; priceUsd: string; currency: string }>(`/pricing/${id}`)
       .then((res) => {
         const price: PricingInfo = {
           amountUsdMicros: res.priceUsdMicros,
@@ -66,14 +89,13 @@ export function AttestationPurchaseModal({
         });
       })
       .catch(() => {
-        // 가격 정책 없으면 무료로 간주
         setState({
           step: 'pricing',
           price: { amountUsdMicros: 0, amountUsd: '0', currency: 'USDC' },
           isFree: true,
         });
       });
-  }, [open, attestationId]);
+  };
 
   // 구매/조회 실행
   const handlePurchase = useCallback(async () => {
@@ -87,7 +109,6 @@ export function AttestationPurchaseModal({
       if (err instanceof PaymentRequiredError) {
         setState({ step: 'insufficient', error: err });
       } else {
-        // 502 (transfer_failed) 등의 에러 메시지를 그대로 표시
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setState({ step: 'error', message: msg });
       }
@@ -139,6 +160,9 @@ export function AttestationPurchaseModal({
             <div className="flex gap-8 mt-8">
               <span className="badge badge-info">{attestation.aiModel}</span>
               <span className="text-xs text-muted">by {attestation.creator?.slice(0, 10)}...</span>
+              {alreadyPurchased && (
+                <span className="badge badge-success">구매 완료</span>
+              )}
             </div>
           </div>
         )}
@@ -177,7 +201,9 @@ export function AttestationPurchaseModal({
         {state.step === 'purchasing' && (
           <div className="flex items-center justify-center" style={{ padding: 40 }}>
             <Loader size={20} className="spin" />
-            <span className="text-muted ml-8">데이터 조회 및 결제 처리 중...</span>
+            <span className="text-muted ml-8">
+              {alreadyPurchased ? '구매 데이터 불러오는 중...' : '데이터 조회 및 결제 처리 중...'}
+            </span>
           </div>
         )}
 
@@ -185,7 +211,9 @@ export function AttestationPurchaseModal({
           <div>
             <div className="flex items-center gap-8 mb-12" style={{ color: 'var(--success)' }}>
               <Check size={18} />
-              <span style={{ fontWeight: 600 }}>조회 성공</span>
+              <span style={{ fontWeight: 600 }}>
+                {alreadyPurchased ? '구매한 데이터 조회 완료' : '조회 성공'}
+              </span>
             </div>
             {state.data.receipt && (
               <div className="text-xs text-muted mb-8">

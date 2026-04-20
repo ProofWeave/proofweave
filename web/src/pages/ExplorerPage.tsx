@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight, FileSearch } from 'lucide-react';
+import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight, FileSearch, ShoppingBag } from 'lucide-react';
 import { api } from '../lib/api';
 import { AttestationPurchaseModal } from '../components/AttestationPurchaseModal';
 
@@ -28,11 +28,28 @@ export function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedAtt, setSelectedAtt] = useState<Attestation | undefined>(undefined);
+  const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set());
+
+  // 내 구매 목록 로드
+  useEffect(() => {
+    api.get<{ attestationIds: string[] }>('/purchases/mine')
+      .then((data) => setPurchasedIds(new Set(data.attestationIds)))
+      .catch(() => { /* 비로그인 상태 무시 */ });
+  }, []);
 
   // 페이지 진입 시 자동 검색
   useEffect(() => {
     handleSearch(1);
   }, []);
+
+  // 모달 닫힐 때 구매 목록 갱신
+  const handleModalClose = () => {
+    setSelectedId(null);
+    // 구매 후 뱃지 갱신
+    api.get<{ attestationIds: string[] }>('/purchases/mine')
+      .then((data) => setPurchasedIds(new Set(data.attestationIds)))
+      .catch(() => {});
+  };
 
   const handleSearch = async (p = 1) => {
     setLoading(true);
@@ -128,50 +145,66 @@ export function ExplorerPage() {
             </thead>
             <tbody>
               {results.length > 0 ? (
-                results.map((att) => (
-                  <tr key={att.attestationId}>
-                    <td className="mono" title={att.attestationId}>
-                      {truncateHash(att.attestationId)}
-                    </td>
-                    <td className="mono" title={att.contentHash}>
-                      {truncateHash(att.contentHash || '—')}
-                    </td>
-                    <td className="mono" title={att.creator}>
-                      {truncateHash(att.creator || '—')}
-                    </td>
-                    <td>
-                      <span className="badge badge-purple">
-                        {att.aiModel || '—'}
-                      </span>
-                    </td>
-                    <td className="text-xs">{formatDate(att.createdAt)}</td>
-                    <td>
-                      <span className="badge badge-success">confirmed</span>
-                    </td>
-                    <td>
-                      <div className="flex gap-4">
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => {
-                            setSelectedId(att.attestationId);
-                            setSelectedAtt(att);
-                          }}
-                        >
-                          <FileSearch size={14} /> 상세
-                        </button>
-                        <a
-                          href={`https://sepolia.basescan.org/tx/${att.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-secondary btn-sm"
-                          style={{ textDecoration: 'none' }}
-                        >
-                          <ExternalLink size={14} /> Tx
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                results.map((att) => {
+                  const isPurchased = purchasedIds.has(att.attestationId);
+                  return (
+                    <tr key={att.attestationId}>
+                      <td className="mono" title={att.attestationId}>
+                        {truncateHash(att.attestationId)}
+                      </td>
+                      <td className="mono" title={att.contentHash}>
+                        {truncateHash(att.contentHash || '—')}
+                      </td>
+                      <td className="mono" title={att.creator}>
+                        {truncateHash(att.creator || '—')}
+                      </td>
+                      <td>
+                        <span className="badge badge-purple">
+                          {att.aiModel || '—'}
+                        </span>
+                      </td>
+                      <td className="text-xs">{formatDate(att.createdAt)}</td>
+                      <td>
+                        <div className="flex gap-4">
+                          <span className="badge badge-success">confirmed</span>
+                          {isPurchased && (
+                            <span className="badge" style={{
+                              background: 'rgba(139, 92, 246, 0.15)',
+                              color: 'var(--accent)',
+                              border: '1px solid rgba(139, 92, 246, 0.3)',
+                            }}>
+                              <ShoppingBag size={10} style={{ marginRight: 2 }} />
+                              구매됨
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex gap-4">
+                          <button
+                            className={`btn btn-sm ${isPurchased ? 'btn-secondary' : 'btn-primary'}`}
+                            onClick={() => {
+                              setSelectedId(att.attestationId);
+                              setSelectedAtt(att);
+                            }}
+                          >
+                            <FileSearch size={14} />
+                            {isPurchased ? '조회' : '상세'}
+                          </button>
+                          <a
+                            href={`https://sepolia.basescan.org/tx/${att.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ textDecoration: 'none' }}
+                          >
+                            <ExternalLink size={14} /> Tx
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={7} className="text-center text-muted" style={{ padding: '60px' }}>
@@ -231,7 +264,8 @@ export function ExplorerPage() {
         open={!!selectedId}
         attestationId={selectedId}
         attestation={selectedAtt}
-        onClose={() => setSelectedId(null)}
+        onClose={handleModalClose}
+        alreadyPurchased={selectedId ? purchasedIds.has(selectedId) : false}
       />
     </>
   );

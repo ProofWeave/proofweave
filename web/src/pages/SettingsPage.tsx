@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus } from 'lucide-react';
+import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus, ShoppingBag, ExternalLink } from 'lucide-react';
 import { useAccount, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { parseUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
@@ -13,6 +13,16 @@ interface SmartWalletData {
   balanceUsdMicros: number;
 }
 
+interface PurchaseRecord {
+  attestationId: string;
+  amountUsd: string;
+  amountUsdMicros: number;
+  paymentMethod: string;
+  txHash: string;
+  receiptId: string;
+  createdAt: string;
+}
+
 export function SettingsPage() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -22,6 +32,8 @@ export function SettingsPage() {
   const [chargeAmount, setChargeAmount] = useState('5');
   const [chargeStatus, setChargeStatus] = useState<'idle' | 'confirming' | 'done' | 'error'>('idle');
   const [creating, setCreating] = useState(false);
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
   const apiKey = api.getApiKey();
 
   // wagmi hooks
@@ -42,6 +54,14 @@ export function SettingsPage() {
     }
     loadWalletInfo();
   }, [apiKey]);
+
+  // 구매 내역 로드
+  useEffect(() => {
+    api.get<{ purchases: PurchaseRecord[] }>('/purchases/history')
+      .then((data) => setPurchases(data.purchases))
+      .catch(() => setPurchases([]))
+      .finally(() => setPurchasesLoading(false));
+  }, []);
 
   // 트랜잭션 확인 후 잔고 갱신
   useEffect(() => {
@@ -375,6 +395,69 @@ export function SettingsPage() {
           <p className="text-secondary text-sm">
             API Key가 없습니다. /auth/register 연동 후 자동 발급됩니다.
           </p>
+        )}
+      </div>
+
+      {/* ─── 구매 내역 ─────────────────────────── */}
+      <div className="card">
+        <div className="flex items-center gap-8 mb-16">
+          <ShoppingBag size={18} style={{ color: 'var(--accent)' }} />
+          <h3 style={{ margin: 0 }}>구매 내역</h3>
+        </div>
+
+        {purchasesLoading ? (
+          <div className="flex items-center gap-8" style={{ padding: 20 }}>
+            <Loader size={16} className="spin" />
+            <span className="text-muted text-sm">불러오는 중...</span>
+          </div>
+        ) : purchases.length === 0 ? (
+          <p className="text-secondary text-sm" style={{ padding: '20px 0' }}>
+            아직 구매한 데이터가 없습니다.
+          </p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Attestation</th>
+                  <th>금액</th>
+                  <th>결제일</th>
+                  <th>TX</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchases.map((p) => (
+                  <tr key={p.receiptId}>
+                    <td className="mono text-xs" title={p.attestationId}>
+                      {p.attestationId.slice(0, 8)}...{p.attestationId.slice(-6)}
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>${p.amountUsd}</span>
+                      <span className="text-xs text-muted" style={{ marginLeft: 4 }}>USDC</span>
+                    </td>
+                    <td className="text-xs">
+                      {new Date(p.createdAt).toLocaleDateString('ko-KR', {
+                        month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </td>
+                    <td>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${p.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ textDecoration: 'none', padding: '2px 8px' }}
+                      >
+                        <ExternalLink size={12} />
+                        Tx
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>
