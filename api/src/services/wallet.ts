@@ -93,19 +93,19 @@ export async function getWalletBalance(
     network: "base-sepolia",
   });
 
-  // USDC 잔고 찾기 (6 decimals = USD micros)
+  // USDC 잔고 찾기
+  // CDP SDK: EvmTokenBalance = { token: { contractAddress, symbol? }, amount: { amount: bigint, decimals: number } }
   let balanceUsdMicros = 0;
-  const balancesList = Array.isArray(balancesResult)
-    ? balancesResult
-    : (balancesResult as { balances?: unknown[] }).balances ?? [];
-  for (const balance of balancesList) {
-    const b = balance as { token?: { symbol?: string; contractAddress?: string }; amount?: string | number };
-    if (
-      b.token?.symbol?.toUpperCase() === "USDC" ||
-      b.token?.contractAddress?.toLowerCase() ===
-        env.USDC_CONTRACT_ADDRESS.toLowerCase()
-    ) {
-      balanceUsdMicros = Number(b.amount ?? 0);
+  const balances = balancesResult.balances ?? [];
+  for (const balance of balances) {
+    const isUsdc =
+      balance.token?.symbol?.toUpperCase() === "USDC" ||
+      balance.token?.contractAddress?.toLowerCase() ===
+        env.USDC_CONTRACT_ADDRESS.toLowerCase();
+
+    if (isUsdc) {
+      // amount.amount is in smallest unit (6 decimals for USDC = already micros)
+      balanceUsdMicros = Number(balance.amount?.amount ?? 0n);
       break;
     }
   }
