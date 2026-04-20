@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus } from 'lucide-react';
-import { useAccount, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { parseUnits } from 'viem';
+import { baseSepolia } from 'wagmi/chains';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { USDC_ADDRESS, USDC_DECIMALS, ERC20_TRANSFER_ABI } from '../config/wagmi';
@@ -27,6 +28,7 @@ export function SettingsPage() {
   const { address: externalAddress, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChainAsync } = useSwitchChain();
   const { data: txHash, writeContract, isPending: isSending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -87,13 +89,16 @@ export function SettingsPage() {
     }
   };
 
-  const handleCharge = () => {
+  const handleCharge = async () => {
     if (!smartWallet?.address || !chargeAmount) return;
     const amount = parseFloat(chargeAmount);
     if (isNaN(amount) || amount <= 0) return;
 
     try {
+      // Base Sepolia로 체인 전환 (다른 체인 연결 시)
+      await switchChainAsync({ chainId: baseSepolia.id });
       writeContract({
+        chainId: baseSepolia.id,
         address: USDC_ADDRESS,
         abi: ERC20_TRANSFER_ABI,
         functionName: 'transfer',
