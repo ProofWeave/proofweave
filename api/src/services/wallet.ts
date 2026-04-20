@@ -157,12 +157,34 @@ export async function transferUsdcFromSmartWallet(
 
   // 1. DB에서 이 Smart Wallet의 owner EOA 주소 조회
   const eoaResult = await pool.query(
-    `SELECT eoa_address FROM api_keys
+    `SELECT eoa_address, wallet_address FROM api_keys
      WHERE smart_wallet_address = $1 AND revoked_at IS NULL
      LIMIT 1`,
     [smartWalletAddress.toLowerCase()]
   );
-  const eoaAddress = eoaResult.rows[0]?.eoa_address;
+  let eoaAddress = eoaResult.rows[0]?.eoa_address;
+  const ownerWalletAddress = eoaResult.rows[0]?.wallet_address;
+
+  // Auto-heal: EOA 없으면 Smart Wallet 재생성 (eoa_address 컬럼 추가 전 생성분)
+  if (!eoaAddress && ownerWalletAddress) {
+    console.warn(`[wallet] Auto-healing: recreating smart wallet for ${ownerWalletAddress}`);
+    const newSmartWalletAddress = await createSmartWallet(ownerWalletAddress);
+
+    // 재귀 방지: 새로 생성된 월렛의 EOA 직접 조회
+    const newEoaResult = await pool.query(
+      `SELECT eoa_address FROM api_keys
+       WHERE smart_wallet_address = $1 AND revoked_at IS NULL
+       LIMIT 1`,
+      [newSmartWalletAddress.toLowerCase()]
+    );
+    eoaAddress = newEoaResult.rows[0]?.eoa_address;
+    // 주소가 바뀌었으므로 caller에게 알림 (에러로)
+    throw new Error(
+      `[wallet] Smart wallet recreated. New address: ${newSmartWalletAddress}. ` +
+      `Please fund this address and retry.`
+    );
+  }
+
   if (!eoaAddress) {
     throw new Error(`[wallet] No EOA found for smart wallet: ${smartWalletAddress}`);
   }
