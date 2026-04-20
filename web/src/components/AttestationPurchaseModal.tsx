@@ -21,8 +21,10 @@ interface PricingInfo {
 
 interface DetailData {
   attestationId: string;
-  originalData: unknown;
-  metadata: Record<string, unknown>;
+  data: unknown;
+  contentHash?: string;
+  creator?: string;
+  aiModel?: string;
   receipt?: { receiptId: string };
 }
 
@@ -50,9 +52,13 @@ export function AttestationPurchaseModal({
     setState({ step: 'loading' });
 
     api
-      .get<{ pricing: PricingInfo | null }>(`/pricing/${attestationId}`)
+      .get<{ priceUsdMicros: number; priceUsd: string; currency: string }>(`/pricing/${attestationId}`)
       .then((res) => {
-        const price = res.pricing || { amountUsdMicros: 0, amountUsd: '0', currency: 'USDC' };
+        const price: PricingInfo = {
+          amountUsdMicros: res.priceUsdMicros,
+          amountUsd: res.priceUsd,
+          currency: res.currency,
+        };
         setState({
           step: 'pricing',
           price,
@@ -194,14 +200,14 @@ export function AttestationPurchaseModal({
               }}
             >
               <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {typeof state.data.originalData === 'string'
-                  ? state.data.originalData
-                  : JSON.stringify(state.data.originalData, null, 2)}
+                {typeof state.data.data === 'string'
+                  ? state.data.data
+                  : JSON.stringify(state.data.data, null, 2)}
               </pre>
             </div>
             <button
               className="btn btn-secondary mt-12"
-              onClick={() => copyData(state.data.originalData)}
+              onClick={() => copyData(state.data.data)}
               style={{ width: '100%' }}
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
