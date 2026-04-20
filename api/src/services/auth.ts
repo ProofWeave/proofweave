@@ -188,11 +188,12 @@ export async function rotateApiKey(
       [sigHash, walletAddress.toLowerCase()]
     );
 
-    // 2. 기존 키의 smart_wallet_address, eoa_address 조회 (이관용)
+    // 2. 기존 키 잠금 + 이관 데이터 조회 (FOR UPDATE로 동시 요청 직렬화)
     const existingWallet = await client.query(
       `SELECT smart_wallet_address, eoa_address FROM api_keys
        WHERE wallet_address = $1 AND revoked_at IS NULL
-       LIMIT 1`,
+       LIMIT 1
+       FOR UPDATE`,
       [walletAddress.toLowerCase()]
     );
     const smartWalletAddress = existingWallet.rows[0]?.smart_wallet_address ?? null;
