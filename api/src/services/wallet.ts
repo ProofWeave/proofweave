@@ -101,7 +101,7 @@ export async function getWalletBalance(
     const isUsdc =
       balance.token?.symbol?.toUpperCase() === "USDC" ||
       balance.token?.contractAddress?.toLowerCase() ===
-        env.USDC_CONTRACT_ADDRESS.toLowerCase();
+      env.USDC_CONTRACT_ADDRESS.toLowerCase();
 
     if (isUsdc) {
       // amount.amount is in smallest unit (6 decimals for USDC = already micros)
