@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader } from 'lucide-react';
+import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus } from 'lucide-react';
 import { useAccount, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits } from 'viem';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,6 +20,7 @@ export function SettingsPage() {
   const [smartWallet, setSmartWallet] = useState<SmartWalletData | null>(null);
   const [chargeAmount, setChargeAmount] = useState('5');
   const [chargeStatus, setChargeStatus] = useState<'idle' | 'confirming' | 'done' | 'error'>('idle');
+  const [creating, setCreating] = useState(false);
   const apiKey = api.getApiKey();
 
   // wagmi hooks
@@ -45,7 +46,7 @@ export function SettingsPage() {
     if (isConfirming) setChargeStatus('confirming');
     if (isConfirmed) {
       setChargeStatus('done');
-      loadWalletInfo(); // 잔고 새로고침
+      loadWalletInfo();
       setTimeout(() => setChargeStatus('idle'), 3000);
     }
   }, [isConfirming, isConfirmed]);
@@ -54,8 +55,8 @@ export function SettingsPage() {
     setWalletLoading(true);
     try {
       const [addrRes, balRes] = await Promise.all([
-        api.get<{ smartWalletAddress: string | null }>('/wallet/address'),
-        api.get<SmartWalletData>('/wallet/balance').catch(() => null),
+        api.get<{ smartWalletAddress: string | null }>('/wallet/address').catch(() => ({ smartWalletAddress: null })),
+        api.get<{ balanceUsdMicros: number; ownerAddress?: string }>('/wallet/balance').catch(() => null),
       ]);
 
       if (addrRes.smartWalletAddress) {
@@ -64,11 +65,25 @@ export function SettingsPage() {
           ownerAddress: balRes?.ownerAddress || '',
           balanceUsdMicros: balRes?.balanceUsdMicros || 0,
         });
+      } else {
+        setSmartWallet(null);
       }
     } catch {
-      // 무시 — Smart Wallet 미생성 상태
+      setSmartWallet(null);
     } finally {
       setWalletLoading(false);
+    }
+  };
+
+  const handleCreateWallet = async () => {
+    setCreating(true);
+    try {
+      await api.post<{ smartWalletAddress: string }>('/wallet/create', {});
+      await loadWalletInfo();
+    } catch (err) {
+      console.error('Smart wallet creation failed:', err);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -129,13 +144,22 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Smart Wallet + 충전 */}
+      {/* Smart Wallet */}
       <div className="card mb-24">
         <div className="card-header">
           <span className="card-title">
             <Wallet size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
             Smart Wallet
           </span>
+          {smartWallet && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={loadWalletInfo}
+              style={{ padding: '2px 8px' }}
+            >
+              <RefreshCw size={12} />
+            </button>
+          )}
         </div>
 
         {walletLoading ? (
@@ -145,7 +169,7 @@ export function SettingsPage() {
           </div>
         ) : smartWallet ? (
           <>
-            {/* Smart Wallet 주소 */}
+            {/* 주소 */}
             <div className="form-group">
               <label className="label">주소</label>
               <div className="flex items-center gap-8">
@@ -165,129 +189,154 @@ export function SettingsPage() {
             {/* 잔고 */}
             <div className="form-group">
               <label className="label">USDC 잔고</label>
-              <div className="flex items-center gap-12">
-                <span className="badge badge-info" style={{ fontSize: '0.9rem', padding: '6px 14px' }}>
-                  ${formatUsd(smartWallet.balanceUsdMicros)} USDC
+              <span
+                className="badge badge-info"
+                style={{ fontSize: '1rem', padding: '8px 16px', display: 'inline-block' }}
+              >
+                ${formatUsd(smartWallet.balanceUsdMicros)} USDC
+              </span>
+            </div>
+
+            <p className="text-xs text-muted">
+              이 지갑에 USDC가 있으면 데이터 구매 시 자동 결제됩니다.
+            </p>
+          </>
+        ) : (
+          <div>
+            <p className="text-sm text-muted mb-12">
+              Smart Wallet이 아직 생성되지 않았습니다.
+            </p>
+            <button
+              className="btn btn-primary"
+              onClick={handleCreateWallet}
+              disabled={creating || !apiKey}
+            >
+              {creating ? (
+                <><Loader size={14} className="spin" /> 생성 중...</>
+              ) : (
+                <><Plus size={14} /> Smart Wallet 생성</>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 외부 지갑 연결 + 충전 (항상 표시) */}
+      <div className="card mb-24">
+        <div className="card-header">
+          <span className="card-title">
+            <Link2 size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
+            외부 지갑 연결 / USDC 충전
+          </span>
+        </div>
+
+        {!isConnected ? (
+          <div>
+            <p className="text-sm text-muted mb-12">
+              외부 지갑(Rabby, MetaMask 등)을 연결하면 Smart Wallet으로 USDC를 직접 충전할 수 있습니다.
+            </p>
+            <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
+              {connectors.map((connector) => (
+                <button
+                  key={connector.uid}
+                  className="btn btn-primary"
+                  onClick={() => connect({ connector })}
+                  style={{ minWidth: 160 }}
+                >
+                  <Link2 size={14} />
+                  {connector.name} 연결
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            {/* 연결된 지갑 */}
+            <div className="form-group">
+              <label className="label">연결된 지갑</label>
+              <div className="flex items-center gap-8">
+                <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
+                  ✓ 연결됨
                 </span>
+                <code className="font-mono" style={{ fontSize: '0.75rem' }}>
+                  {externalAddress}
+                </code>
                 <button
                   className="btn btn-secondary btn-sm"
-                  onClick={loadWalletInfo}
+                  onClick={() => disconnect()}
                   style={{ padding: '2px 8px' }}
                 >
-                  <RefreshCw size={12} />
+                  <Unlink size={12} /> 해제
                 </button>
               </div>
             </div>
 
-            {/* 외부 지갑 연결 + 충전 */}
-            <div className="form-group">
-              <label className="label">
-                <Link2 size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-                외부 지갑 → Smart Wallet 충전
-              </label>
+            {/* 충전 UI */}
+            {smartWallet ? (
+              <div className="form-group">
+                <label className="label">Smart Wallet 충전</label>
+                <div className="flex items-center gap-8">
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={chargeAmount}
+                    onChange={(e) => setChargeAmount(e.target.value)}
+                    placeholder="USDC 금액"
+                    style={{ width: 140 }}
+                  />
+                  <span className="text-sm text-muted">USDC</span>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleCharge}
+                    disabled={isSending || isConfirming}
+                  >
+                    {isSending ? (
+                      <><Loader size={14} className="spin" /> 서명 중...</>
+                    ) : isConfirming ? (
+                      <><Loader size={14} className="spin" /> 확인 중...</>
+                    ) : (
+                      <><ArrowUpRight size={14} /> 충전하기</>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-muted mt-4">
+                  연결된 지갑에서 Smart Wallet({smartWallet.address.slice(0, 8)}...)으로 USDC를 전송합니다.
+                </p>
 
-              {!isConnected ? (
-                <div>
-                  <p className="text-xs text-muted mb-8">
-                    외부 지갑을 연결하면 USDC를 Smart Wallet으로 직접 충전할 수 있습니다.
+                {/* 상태 메시지 */}
+                {chargeStatus === 'confirming' && (
+                  <p className="text-xs text-muted mt-8">⏳ 트랜잭션 확인 중...</p>
+                )}
+                {chargeStatus === 'done' && (
+                  <p className="text-xs mt-8" style={{ color: 'var(--success)' }}>
+                    ✅ 충전 완료! 잔고가 업데이트되었습니다.
                   </p>
-                  <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
-                    {connectors.map((connector) => (
-                      <button
-                        key={connector.uid}
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => connect({ connector })}
-                      >
-                        <Link2 size={12} />
-                        {connector.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {/* 연결된 지갑 정보 */}
-                  <div className="flex items-center gap-8 mb-12">
-                    <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
-                      ✓ 연결됨
-                    </span>
-                    <code className="font-mono" style={{ fontSize: '0.7rem' }}>
-                      {externalAddress?.slice(0, 8)}...{externalAddress?.slice(-6)}
-                    </code>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => disconnect()}
-                      style={{ padding: '2px 8px' }}
-                    >
-                      <Unlink size={10} />
-                    </button>
-                  </div>
-
-                  {/* 충전 입력 */}
-                  <div className="flex items-center gap-8">
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={chargeAmount}
-                      onChange={(e) => setChargeAmount(e.target.value)}
-                      placeholder="USDC 금액"
-                      style={{ width: 140 }}
-                    />
-                    <span className="text-sm text-muted">USDC</span>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={handleCharge}
-                      disabled={isSending || isConfirming}
-                    >
-                      {isSending ? (
-                        <><Loader size={12} className="spin" /> 서명 중...</>
-                      ) : isConfirming ? (
-                        <><Loader size={12} className="spin" /> 확인 중...</>
-                      ) : (
-                        <><ArrowUpRight size={12} /> 충전</>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* 상태 메시지 */}
-                  {chargeStatus === 'confirming' && (
-                    <p className="text-xs text-muted mt-8">
-                      ⏳ 트랜잭션 확인 중... 잠시만 기다려주세요.
-                    </p>
-                  )}
-                  {chargeStatus === 'done' && (
-                    <p className="text-xs mt-8" style={{ color: 'var(--success)' }}>
-                      ✅ 충전 완료! 잔고가 업데이트되었습니다.
-                    </p>
-                  )}
-                  {chargeStatus === 'error' && (
-                    <p className="text-xs mt-8" style={{ color: 'var(--error)' }}>
-                      ❌ 충전 실패. 지갑 잔고를 확인해주세요.
-                    </p>
-                  )}
-                  {txHash && (
-                    <p className="text-xs text-muted mt-4">
-                      TX:{' '}
-                      <a
-                        href={`https://sepolia.basescan.org/tx/${txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--accent)' }}
-                      >
-                        {txHash.slice(0, 14)}...
-                      </a>
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <p className="text-secondary text-sm">
-            Smart Wallet이 아직 생성되지 않았습니다. API Key 발급 시 자동 생성됩니다.
-          </p>
+                )}
+                {chargeStatus === 'error' && (
+                  <p className="text-xs mt-8" style={{ color: 'var(--error)' }}>
+                    ❌ 충전 실패. 지갑 잔고를 확인해주세요.
+                  </p>
+                )}
+                {txHash && (
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs"
+                    style={{ color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
+                  >
+                    TX: {txHash.slice(0, 14)}... ↗
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">
+                먼저 위에서 Smart Wallet을 생성해주세요.
+              </p>
+            )}
+          </div>
         )}
       </div>
 

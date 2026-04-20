@@ -1,8 +1,36 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
-import { getSmartWalletAddress, getWalletBalance } from "../services/wallet.js";
+import { getSmartWalletAddress, getWalletBalance, createSmartWallet } from "../services/wallet.js";
 
 export const walletRouter = Router();
+
+/**
+ * POST /wallet/create
+ * Smart Wallet 수동 생성 (없는 경우)
+ */
+walletRouter.post("/wallet/create", authenticate, async (req, res) => {
+  const owner = req.apiKeyOwner;
+  if (!owner) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  // 이미 존재하면 기존 주소 반환
+  const existing = await getSmartWalletAddress(owner);
+  if (existing) {
+    res.status(200).json({ smartWalletAddress: existing, created: false });
+    return;
+  }
+
+  try {
+    const smartWalletAddress = await createSmartWallet(owner);
+    res.status(201).json({ smartWalletAddress, created: true });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[wallet] Smart wallet creation failed:", errMsg);
+    res.status(500).json({ error: "Smart wallet creation failed", message: errMsg });
+  }
+});
 
 /**
  * GET /wallet/balance
