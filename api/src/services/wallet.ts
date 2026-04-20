@@ -38,11 +38,12 @@ export async function createSmartWallet(
   const smartWalletAddress = smartAccount.address;
 
   // 3. DB에 스마트 지갑 주소 + EOA 주소 저장
-  //    EOA가 필요한 이유: sendUserOperation 시 owner reference
+  //    EOA 주소는 checksummed 원본 유지 (CDP getAccount 조회 시 필요)
+  //    smart_wallet_address는 lowercase (DB 조회 일관성)
   await pool.query(
     `UPDATE api_keys SET smart_wallet_address = $1, eoa_address = $2
      WHERE wallet_address = $3 AND revoked_at IS NULL`,
-    [smartWalletAddress.toLowerCase(), evmAccount.address.toLowerCase(), ownerAddress.toLowerCase()]
+    [smartWalletAddress.toLowerCase(), evmAccount.address, ownerAddress.toLowerCase()]
   );
 
   return smartWalletAddress;
