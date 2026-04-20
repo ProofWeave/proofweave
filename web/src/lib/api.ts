@@ -67,7 +67,10 @@ class ApiClient {
         throw new PaymentRequiredError(paymentBody);
       }
       const error = await res.json().catch(() => ({ error: res.statusText }));
-      throw new ApiError(res.status, error.error || 'Unknown error');
+      const errorMsg = error.message
+        ? `${error.error || 'Error'}: ${error.message}`
+        : (error.error || 'Unknown error');
+      throw new ApiError(res.status, errorMsg);
     }
 
     return res.json();

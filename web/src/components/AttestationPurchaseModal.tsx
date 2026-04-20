@@ -87,7 +87,9 @@ export function AttestationPurchaseModal({
       if (err instanceof PaymentRequiredError) {
         setState({ step: 'insufficient', error: err });
       } else {
-        setState({ step: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
+        // 502 (transfer_failed) 등의 에러 메시지를 그대로 표시
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        setState({ step: 'error', message: msg });
       }
     }
   }, [attestationId]);

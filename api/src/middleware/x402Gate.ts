@@ -146,14 +146,14 @@ export async function x402Gate(
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error("[x402Gate] Smart wallet transfer failed:", errMsg);
 
-        if (env.NODE_ENV === "production") {
-          res.status(502).json({
-            error: "Payment processing failed",
-            message: "Smart wallet USDC transfer failed. Please retry.",
-          });
-          return;
-        }
-        // 개발 모드: 402로 폴백
+        // 전송 실패는 잔고 부족이 아님 → 502로 명확히 구분
+        res.status(502).json({
+          error: "Payment processing failed",
+          reason: "transfer_failed",
+          message: errMsg,
+          hint: "Smart wallet USDC transfer failed. Check server logs for details.",
+        });
+        return;
       }
     }
   }
