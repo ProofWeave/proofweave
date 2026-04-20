@@ -180,6 +180,12 @@ export async function rotateApiKey(
   try {
     await client.query("BEGIN");
 
+    // Advisory lock: 같은 wallet_address에 대한 모든 트랜잭션 완전 직렬화
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1))",
+      [walletAddress.toLowerCase()]
+    );
+
     // 1. 서명 소비 기록
     const sigHash = hashSignature(signature);
     await client.query(
@@ -188,12 +194,11 @@ export async function rotateApiKey(
       [sigHash, walletAddress.toLowerCase()]
     );
 
-    // 2. 기존 키 잠금 + 이관 데이터 조회 (FOR UPDATE로 동시 요청 직렬화)
+    // 2. 기존 키의 smart_wallet_address, eoa_address 조회 (이관용)
     const existingWallet = await client.query(
       `SELECT smart_wallet_address, eoa_address FROM api_keys
        WHERE wallet_address = $1 AND revoked_at IS NULL
-       LIMIT 1
-       FOR UPDATE`,
+       LIMIT 1`,
       [walletAddress.toLowerCase()]
     );
     const smartWalletAddress = existingWallet.rows[0]?.smart_wallet_address ?? null;
