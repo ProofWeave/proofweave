@@ -38,12 +38,11 @@ export async function createSmartWallet(
   const smartWalletAddress = smartAccount.address;
 
   // 3. DB에 스마트 지갑 주소 + EOA 주소 저장
-  //    EOA 주소는 checksummed 원본 유지 (CDP getAccount 조회 시 필요)
-  //    smart_wallet_address는 lowercase (DB 조회 일관성)
+  //    둘 다 checksummed 원본 유지 (CDP API 조회 시 필요)
   await pool.query(
     `UPDATE api_keys SET smart_wallet_address = $1, eoa_address = $2
      WHERE wallet_address = $3 AND revoked_at IS NULL`,
-    [smartWalletAddress.toLowerCase(), evmAccount.address, ownerAddress.toLowerCase()]
+    [smartWalletAddress, evmAccount.address, ownerAddress.toLowerCase()]
   );
 
   return smartWalletAddress;
@@ -158,10 +157,10 @@ export async function transferUsdcFromSmartWallet(
 
   // 1. DB에서 이 Smart Wallet의 owner EOA 주소 조회
   const eoaResult = await pool.query(
-    `SELECT eoa_address, wallet_address FROM api_keys
-     WHERE smart_wallet_address = $1 AND revoked_at IS NULL
+    `SELECT eoa_address, wallet_address, smart_wallet_address FROM api_keys
+     WHERE LOWER(smart_wallet_address) = LOWER($1) AND revoked_at IS NULL
      LIMIT 1`,
-    [smartWalletAddress.toLowerCase()]
+    [smartWalletAddress]
   );
   let eoaAddress = eoaResult.rows[0]?.eoa_address;
   const ownerWalletAddress = eoaResult.rows[0]?.wallet_address;
@@ -195,9 +194,10 @@ export async function transferUsdcFromSmartWallet(
     address: eoaAddress as `0x${string}`,
   });
 
-  // 3. Smart Account 객체 조회 (owner 필수)
+  // 3. Smart Account 객체 조회 (DB에서 가져온 checksummed 주소 사용)
+  const dbSmartWalletAddress = eoaResult.rows[0]?.smart_wallet_address || smartWalletAddress;
   const smartAccount = await cdp.evm.getSmartAccount({
-    address: smartWalletAddress as `0x${string}`,
+    address: dbSmartWalletAddress as `0x${string}`,
     owner: ownerAccount,
   });
 
