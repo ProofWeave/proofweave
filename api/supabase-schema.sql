@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   wallet_address TEXT NOT NULL,
   smart_wallet_address TEXT,
+  eoa_address TEXT,               -- CDP TEE에서 생성한 EOA (Smart Account owner)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   revoked_at TIMESTAMPTZ
 );

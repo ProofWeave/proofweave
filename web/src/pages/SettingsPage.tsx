@@ -1,12 +1,52 @@
-import { useState } from 'react';
-import { Copy, Check, Key, Wallet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Copy, Check, Key, Wallet, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+
+interface SmartWalletData {
+  address: string;
+  ownerAddress: string;
+  balanceUsdMicros: number;
+}
 
 export function SettingsPage() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [walletCopied, setWalletCopied] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [smartWallet, setSmartWallet] = useState<SmartWalletData | null>(null);
   const apiKey = api.getApiKey();
+
+  // Smart Wallet 정보 로드
+  useEffect(() => {
+    if (!apiKey) {
+      setWalletLoading(false);
+      return;
+    }
+    loadWalletInfo();
+  }, [apiKey]);
+
+  const loadWalletInfo = async () => {
+    setWalletLoading(true);
+    try {
+      const [addrRes, balRes] = await Promise.all([
+        api.get<{ smartWalletAddress: string | null }>('/wallet/address'),
+        api.get<SmartWalletData>('/wallet/balance').catch(() => null),
+      ]);
+
+      if (addrRes.smartWalletAddress) {
+        setSmartWallet({
+          address: addrRes.smartWalletAddress,
+          ownerAddress: balRes?.ownerAddress || '',
+          balanceUsdMicros: balRes?.balanceUsdMicros || 0,
+        });
+      }
+    } catch {
+      // 무시 — Smart Wallet 미생성 상태
+    } finally {
+      setWalletLoading(false);
+    }
+  };
 
   const copyKey = () => {
     if (apiKey) {
@@ -15,6 +55,16 @@ export function SettingsPage() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const copyWalletAddress = () => {
+    if (smartWallet?.address) {
+      navigator.clipboard.writeText(smartWallet.address);
+      setWalletCopied(true);
+      setTimeout(() => setWalletCopied(false), 2000);
+    }
+  };
+
+  const formatUsd = (micros: number) => (micros / 1_000_000).toFixed(6);
 
   return (
     <>
@@ -47,13 +97,48 @@ export function SettingsPage() {
         <div className="form-group">
           <label className="label">
             <Wallet size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-            CDP Smart Account (읽기 전용)
+            CDP Smart Wallet
           </label>
-          <input
-            className="input font-mono"
-            value="서버에서 관리 · /auth/register 연동 후 표시"
-            readOnly
-          />
+          {walletLoading ? (
+            <div className="flex items-center gap-8" style={{ padding: '10px 0' }}>
+              <RefreshCw size={14} className="spin" />
+              <span className="text-muted text-sm">지갑 정보 로딩 중...</span>
+            </div>
+          ) : smartWallet ? (
+            <>
+              <div className="flex items-center gap-8">
+                <input
+                  className="input font-mono"
+                  value={smartWallet.address}
+                  readOnly
+                  style={{ flex: 1, fontSize: '0.8rem' }}
+                />
+                <button className="btn btn-secondary btn-sm" onClick={copyWalletAddress}>
+                  {walletCopied ? <Check size={14} /> : <Copy size={14} />}
+                  {walletCopied ? '복사됨' : '복사'}
+                </button>
+              </div>
+              <div className="flex items-center gap-12 mt-8">
+                <span className="badge badge-info" style={{ fontSize: '0.8rem' }}>
+                  잔고: ${formatUsd(smartWallet.balanceUsdMicros)} USDC
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={loadWalletInfo}
+                  style={{ padding: '2px 8px' }}
+                >
+                  <RefreshCw size={12} />
+                </button>
+              </div>
+              <p className="text-xs text-muted mt-8">
+                이 주소로 USDC를 전송하면 데이터 구매 시 자동 결제됩니다.
+              </p>
+            </>
+          ) : (
+            <p className="text-secondary text-sm">
+              Smart Wallet이 아직 생성되지 않았습니다. API Key 발급 시 자동 생성됩니다.
+            </p>
+          )}
         </div>
       </div>
 

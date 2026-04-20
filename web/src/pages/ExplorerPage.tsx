@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search as SearchIcon, ExternalLink, ChevronLeft, ChevronRight, FileSearch } from 'lucide-react';
 import { api } from '../lib/api';
+import { AttestationPurchaseModal } from '../components/AttestationPurchaseModal';
 
 interface Attestation {
   attestationId: string;
@@ -25,6 +26,13 @@ export function ExplorerPage() {
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedAtt, setSelectedAtt] = useState<Attestation | undefined>(undefined);
+
+  // 페이지 진입 시 자동 검색
+  useEffect(() => {
+    handleSearch(1);
+  }, []);
 
   const handleSearch = async (p = 1) => {
     setLoading(true);
@@ -141,15 +149,26 @@ export function ExplorerPage() {
                       <span className="badge badge-success">confirmed</span>
                     </td>
                     <td>
-                      <a
-                        href={`https://sepolia.basescan.org/tx/${att.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary btn-sm"
-                        style={{ textDecoration: 'none' }}
-                      >
-                        <ExternalLink size={14} /> Tx
-                      </a>
+                      <div className="flex gap-4">
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setSelectedId(att.attestationId);
+                            setSelectedAtt(att);
+                          }}
+                        >
+                          <FileSearch size={14} /> 상세
+                        </button>
+                        <a
+                          href={`https://sepolia.basescan.org/tx/${att.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary btn-sm"
+                          style={{ textDecoration: 'none' }}
+                        >
+                          <ExternalLink size={14} /> Tx
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -207,6 +226,13 @@ export function ExplorerPage() {
           </a>
         </div>
       )}
+      {/* Purchase Modal */}
+      <AttestationPurchaseModal
+        open={!!selectedId}
+        attestationId={selectedId}
+        attestation={selectedAtt}
+        onClose={() => setSelectedId(null)}
+      />
     </>
   );
 }

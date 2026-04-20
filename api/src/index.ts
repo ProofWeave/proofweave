@@ -9,6 +9,7 @@ import { attestRouter } from "./routes/attest.js";
 import { attestationsRouter } from "./routes/attestations.js";
 import { aiRouter } from "./routes/ai.js";
 import { taintGuardRouter } from "./routes/taintGuard.js";
+import { statsRouter } from "./routes/stats.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
@@ -33,6 +34,7 @@ app.use(pricingRouter);    // POST /pricing (authenticated), GET /pricing/:id (p
 
 // ── Wallet Routes (Phase 2-4) ───────────────────────────────
 app.use(walletRouter);     // GET /wallet/balance, GET /wallet/address
+app.use(statsRouter);      // GET /stats/me (authenticated)
 
 // ── Attestation Routes (Phase 2-5) ──────────────────────────
 app.use(attestRouter);         // POST /attest (authenticated)

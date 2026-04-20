@@ -57,7 +57,7 @@ describe("authenticate middleware", () => {
   it("should pass with valid API key", async () => {
     const req = createMockReq({ "x-api-key": "pw_validkey" });
     const res = createMockRes();
-    mockVerifyApiKey.mockResolvedValue({ walletAddress: "0xabc", smartWalletAddress: null });
+    mockVerifyApiKey.mockResolvedValue({ walletAddress: "0xabc", smartWalletAddress: null, eoaAddress: null });
 
     await authenticate(req, res, next);
 

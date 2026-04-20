@@ -65,6 +65,11 @@ const envSchema = z.object({
   CDP_API_KEY_SECRET: z.string().optional(),
   CDP_WALLET_SECRET: z.string().optional(),
 
+  // USDC Contract Address (네트워크별 상이)
+  // Base Sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+  // Base Mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+  USDC_CONTRACT_ADDRESS: hexAddress.default("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
+
   // Receipt HMAC 서명 시크릿 (openssl rand -hex 32)
   RECEIPT_SECRET: z.string().min(32, "RECEIPT_SECRET must be at least 32 chars").optional(),
 

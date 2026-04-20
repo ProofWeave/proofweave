@@ -49,15 +49,30 @@ interface SearchResponse {
 
 export function DashboardPage() {
   const [stats, setStats] = useState({ total: 0, myData: 0 });
+  const [myStats, setMyStats] = useState({ purchases: 0, savings: '$0' });
   const [recent, setRecent] = useState<AttestationRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.get<SearchResponse>('/search?limit=10');
-        setRecent(data.attestations || []);
-        setStats({ total: data.count || 0, myData: data.count || 0 });
+        const [searchData, statsData] = await Promise.all([
+          api.get<SearchResponse>('/search?limit=10'),
+          api.get<{
+            totalPurchases: number;
+            totalAttestations: number;
+            estimatedSavingsUsd: string;
+          }>('/stats/me').catch(() => null),
+        ]);
+
+        setRecent(searchData.attestations || []);
+        setStats({ total: searchData.count || 0, myData: statsData?.totalAttestations || 0 });
+        if (statsData) {
+          setMyStats({
+            purchases: statsData.totalPurchases,
+            savings: `$${statsData.estimatedSavingsUsd}`,
+          });
+        }
       } catch (err) {
         console.warn('[Dashboard] fetch failed:', err);
       } finally {
@@ -106,14 +121,14 @@ export function DashboardPage() {
         />
         <KpiCard
           title="Purchases"
-          value="0"
+          value={String(myStats.purchases)}
           icon={<ShoppingCart size={20} />}
           color="green"
           loading={loading}
         />
         <KpiCard
           title="Cost Saved"
-          value="$0"
+          value={myStats.savings}
           icon={<DollarSign size={20} />}
           color="amber"
           loading={loading}

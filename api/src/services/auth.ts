@@ -133,12 +133,12 @@ export async function createApiKey(walletAddress: string): Promise<string> {
 /** API Key로 소유자 조회 (null = 유효하지 않음) */
 export async function verifyApiKey(
   key: string
-): Promise<{ walletAddress: string; smartWalletAddress: string | null } | null> {
+): Promise<{ walletAddress: string; smartWalletAddress: string | null; eoaAddress: string | null } | null> {
   if (!key.startsWith(API_KEY_PREFIX)) return null;
 
   const keyHash = hashApiKey(key);
   const result = await pool.query(
-    `SELECT wallet_address, smart_wallet_address FROM api_keys
+    `SELECT wallet_address, smart_wallet_address, eoa_address FROM api_keys
      WHERE key_hash = $1 AND revoked_at IS NULL`,
     [keyHash]
   );
@@ -147,6 +147,7 @@ export async function verifyApiKey(
   return {
     walletAddress: result.rows[0].wallet_address,
     smartWalletAddress: result.rows[0].smart_wallet_address ?? null,
+    eoaAddress: result.rows[0].eoa_address ?? null,
   };
 }
 
@@ -180,14 +181,15 @@ export async function rotateApiKey(
       [sigHash, walletAddress.toLowerCase()]
     );
 
-    // 2. 기존 키의 smart_wallet_address 조회 (이관용)
+    // 2. 기존 키의 smart_wallet_address, eoa_address 조회 (이관용)
     const existingWallet = await client.query(
-      `SELECT smart_wallet_address FROM api_keys
+      `SELECT smart_wallet_address, eoa_address FROM api_keys
        WHERE wallet_address = $1 AND revoked_at IS NULL
        LIMIT 1`,
       [walletAddress.toLowerCase()]
     );
     const smartWalletAddress = existingWallet.rows[0]?.smart_wallet_address ?? null;
+    const eoaAddress = existingWallet.rows[0]?.eoa_address ?? null;
 
     // 3. 기존 키 폐기
     const revokeResult = await client.query(
@@ -197,12 +199,12 @@ export async function rotateApiKey(
     );
     const revokedCount = revokeResult.rowCount ?? 0;
 
-    // 4. 새 키 발급 (smart_wallet_address 이관)
+    // 4. 새 키 발급 (smart_wallet_address + eoa_address 이관)
     const apiKey = generateApiKey();
     const keyHash = hashApiKey(apiKey);
     await client.query(
-      `INSERT INTO api_keys (key_hash, wallet_address, smart_wallet_address) VALUES ($1, $2, $3)`,
-      [keyHash, walletAddress.toLowerCase(), smartWalletAddress]
+      `INSERT INTO api_keys (key_hash, wallet_address, smart_wallet_address, eoa_address) VALUES ($1, $2, $3, $4)`,
+      [keyHash, walletAddress.toLowerCase(), smartWalletAddress, eoaAddress]
     );
 
     await client.query("COMMIT");

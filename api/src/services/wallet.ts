@@ -1,15 +1,7 @@
 import { getCdpClient } from "../config/cdp.js";
 import { env } from "../config/env.js";
 import { pool } from "./db.js";
-import { createPublicClient, http } from "viem";
-import { baseSepolia } from "viem/chains";
 import type { SmartWalletInfo } from "../types/payment.js";
-
-// viem PublicClient — tx finality 확인용
-const publicClient = createPublicClient({
-  chain: baseSepolia,
-  transport: http(env.BASE_SEPOLIA_RPC_URL),
-});
 
 /**
  * CDP Smart Wallet 서비스
@@ -45,11 +37,12 @@ export async function createSmartWallet(
 
   const smartWalletAddress = smartAccount.address;
 
-  // 3. DB에 스마트 지갑 주소 저장
+  // 3. DB에 스마트 지갑 주소 + EOA 주소 저장
+  //    EOA가 필요한 이유: sendUserOperation 시 owner reference
   await pool.query(
-    `UPDATE api_keys SET smart_wallet_address = $1
-     WHERE wallet_address = $2 AND revoked_at IS NULL`,
-    [smartWalletAddress.toLowerCase(), ownerAddress.toLowerCase()]
+    `UPDATE api_keys SET smart_wallet_address = $1, eoa_address = $2
+     WHERE wallet_address = $3 AND revoked_at IS NULL`,
+    [smartWalletAddress.toLowerCase(), evmAccount.address.toLowerCase(), ownerAddress.toLowerCase()]
   );
 
   return smartWalletAddress;
@@ -110,7 +103,7 @@ export async function getWalletBalance(
     if (
       b.token?.symbol?.toUpperCase() === "USDC" ||
       b.token?.contractAddress?.toLowerCase() ===
-        "0x036cbd53842c5426634e7929541ec2318f3dcf7e" // Base Sepolia USDC
+        env.USDC_CONTRACT_ADDRESS.toLowerCase()
     ) {
       balanceUsdMicros = Number(b.amount ?? 0);
       break;
@@ -134,8 +127,8 @@ export async function getWalletBalance(
 
 // ── USDC 전송 (결제 실행) ────────────────────────────────────
 
-// Base Sepolia USDC 컨트랙트 주소
-const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as const;
+// USDC 컨트랙트 주소 (env에서 관리 — 네트워크별 상이)
+const USDC_CONTRACT_ADDRESS = env.USDC_CONTRACT_ADDRESS as `0x${string}`;
 
 /**
  * 스마트 지갑에서 operator 주소로 USDC 전송
@@ -162,31 +155,56 @@ export async function transferUsdcFromSmartWallet(
 
   const cdp = getCdpClient();
 
-  // P0-1: to = USDC 컨트랙트 주소 (operator가 아님!)
-  const sendResult = await cdp.evm.sendTransaction({
+  // 1. DB에서 이 Smart Wallet의 owner EOA 주소 조회
+  const eoaResult = await pool.query(
+    `SELECT eoa_address FROM api_keys
+     WHERE smart_wallet_address = $1 AND revoked_at IS NULL
+     LIMIT 1`,
+    [smartWalletAddress.toLowerCase()]
+  );
+  const eoaAddress = eoaResult.rows[0]?.eoa_address;
+  if (!eoaAddress) {
+    throw new Error(`[wallet] No EOA found for smart wallet: ${smartWalletAddress}`);
+  }
+
+  // 2. EOA 계정 객체 조회 (CDP TEE에서 관리)
+  const ownerAccount = await cdp.evm.getAccount({
+    address: eoaAddress as `0x${string}`,
+  });
+
+  // 3. Smart Account 객체 조회 (owner 필수)
+  const smartAccount = await cdp.evm.getSmartAccount({
     address: smartWalletAddress as `0x${string}`,
+    owner: ownerAccount,
+  });
+
+  // 2. Smart Account는 sendUserOperation 사용 (ERC-4337)
+  //    sendTransaction은 EOA 전용 — Smart Account에 사용하면 실패
+  const userOp = await cdp.evm.sendUserOperation({
+    smartAccount,
     network: "base-sepolia",
-    transaction: {
+    calls: [{
       to: USDC_CONTRACT_ADDRESS,
       value: 0n,
       // ERC-20 transfer(address, uint256) — 수신자: operator, 금액: amountUsdMicros
       data: encodeUsdcTransfer(toAddress, amountUsdMicros),
-    },
+    }],
   });
 
-  const txHash = sendResult.transactionHash;
-  if (!txHash) {
-    throw new Error("[wallet] No txHash returned from CDP sendTransaction");
+  // 3. UserOp 완료 대기 → transactionHash 획득
+  const result = await cdp.evm.waitForUserOperation({
+    userOpHash: userOp.userOpHash,
+    smartAccountAddress: userOp.smartAccountAddress,
+    waitOptions: { timeoutSeconds: 60 },
+  });
+
+  if (result.status === "failed") {
+    throw new Error(`[wallet] USDC UserOp failed: ${result.userOpHash}`);
   }
 
-  // P0-2: viem으로 tx finality 확인 — 온체인 확정 대기
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
-    timeout: 60_000, // 60초 대기
-  });
-
-  if (receipt.status === "reverted") {
-    throw new Error(`[wallet] USDC transfer reverted: ${txHash}`);
+  const txHash = result.transactionHash;
+  if (!txHash) {
+    throw new Error("[wallet] No txHash after UserOp completion");
   }
 
   return txHash;
