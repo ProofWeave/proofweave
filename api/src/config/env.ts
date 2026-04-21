@@ -71,7 +71,7 @@ const envSchema = z.object({
   USDC_CONTRACT_ADDRESS: hexAddress.default("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
 
   // Receipt HMAC 서명 시크릿 (openssl rand -hex 32)
-  RECEIPT_SECRET: z.string().min(32, "RECEIPT_SECRET must be at least 32 chars").optional(),
+  RECEIPT_SECRET: z.string().min(32, "RECEIPT_SECRET must be at least 32 chars"),
 
   // 데이터 암호화 마스터 키 (openssl rand -hex 32, HKDF 파생용)
   DATA_ENCRYPTION_KEY: z.string().length(64, "DATA_ENCRYPTION_KEY must be 64 hex chars (32 bytes)").optional(),

@@ -227,13 +227,14 @@ async function processPaymentAndIssueReceipt(
     }
 
     // P0-3: client 전달 → 동일 트랜잭션에서 실행
+    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90일 만료
     const receipt = await issueReceipt(
       attestationId,
       payer,
       paymentMethod,
       amountUsdMicros,
       txHash,
-      undefined, // expiresAt
+      expiresAt,
       client
     );
 

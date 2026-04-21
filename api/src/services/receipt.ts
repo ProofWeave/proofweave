@@ -5,13 +5,11 @@ import type { PoolClient } from "pg";
 import { env } from "../config/env.js";
 import type { AccessReceipt, ParsedReceipt } from "../types/payment.js";
 
-const DEFAULT_RECEIPT_SECRET = "dev-secret-do-not-use-in-production-32chars!!";
-
 function getReceiptSecret(): string {
-  if (env.NODE_ENV === "production" && !env.RECEIPT_SECRET) {
-    throw new Error("RECEIPT_SECRET is required in production");
+  if (!env.RECEIPT_SECRET) {
+    throw new Error("RECEIPT_SECRET is required — set it in .env (openssl rand -hex 32)");
   }
-  return env.RECEIPT_SECRET ?? DEFAULT_RECEIPT_SECRET;
+  return env.RECEIPT_SECRET;
 }
 
 // ── HMAC 서명 ────────────────────────────────────────────────

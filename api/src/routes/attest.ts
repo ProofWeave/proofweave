@@ -24,6 +24,14 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
     res.status(400).json({ error: "data (object) is required" });
     return;
   }
+
+  // 데이터 크기 제한 (64KB) — 서버 리소스 + IPFS 비용 보호
+  const dataSize = JSON.stringify(data).length;
+  if (dataSize > 65_536) {
+    res.status(413).json({ error: `data too large (${dataSize} bytes, max 65536)` });
+    return;
+  }
+
   if (!aiModel || typeof aiModel !== "string") {
     res.status(400).json({ error: "aiModel (string) is required" });
     return;
@@ -55,10 +63,16 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       aiModel,
     });
 
-    // priceUsdMicros가 지정된 경우 자동 가격 설정
+    // priceUsdMicros가 지정된 경우 자동 가격 설정 (실패해도 attest 성공은 유지)
     let pricing = null;
+    let pricingError: string | undefined;
     if (typeof priceUsdMicros === "number" && priceUsdMicros > 0) {
-      pricing = await setPrice(result.attestationId, creator, priceUsdMicros);
+      try {
+        pricing = await setPrice(result.attestationId, creator, priceUsdMicros);
+      } catch (err: unknown) {
+        pricingError = err instanceof Error ? err.message : "Pricing failed";
+        console.warn("[POST /attest] setPrice failed (attest succeeded):", pricingError);
+      }
     }
 
     res.status(201).json({

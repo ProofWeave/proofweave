@@ -127,12 +127,16 @@ attestationsRouter.get("/verify/:contentHash", async (req, res) => {
 attestationsRouter.get("/search", authenticate, async (req, res) => {
   const { creator, aiModel, limit, offset } = req.query;
 
+  // limit/offset 입력 검증
+  const parsedLimit = limit ? Math.min(Math.max(Number(limit) || 10, 1), 100) : 10;
+  const parsedOffset = offset ? Math.max(Number(offset) || 0, 0) : 0;
+
   try {
     const results = await searchAttestations({
       creator: creator as string | undefined,
       aiModel: aiModel as string | undefined,
-      limit: limit ? Number(limit) : undefined,
-      offset: offset ? Number(offset) : undefined,
+      limit: parsedLimit,
+      offset: parsedOffset,
     });
 
     res.status(200).json({
