@@ -88,13 +88,45 @@ export async function createAttestation(params: {
     creator,
   });
 
-  // 5. 온체인 attest tx
-  const txHash = await registryWrite.write.attest([
-    contentHash as `0x${string}`,
-    creator as `0x${string}`,
-    aiModel,
-    ipfsCid,
-  ]);
+  // 5. 온체인 중복 체크 (DB에 없지만 체인에 이미 존재하는 경우 대비)
+  try {
+    const onchainAttestation = await registryRead.read.verify([
+      contentHash as `0x${string}`,
+      creator as `0x${string}`,
+    ]);
+    // timestamp > 0이면 이미 온체인에 존재
+    if (onchainAttestation && Number(onchainAttestation.timestamp) > 0) {
+      throw new Error(`AlreadyAttested: ${contentHash} by ${creator} (on-chain)`);
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("AlreadyAttested")) throw err;
+    // AttestationNotFound는 정상 (아직 없음) — 계속 진행
+  }
+
+  // 6. 온체인 attest tx (simulateContract로 revert 사전 감지)
+  let txHash: `0x${string}`;
+  try {
+    const { request } = await publicClient.simulateContract({
+      address: env.PROXY_ADDRESS as `0x${string}`,
+      abi: attestationRegistryAbi,
+      functionName: "attest",
+      args: [
+        contentHash as `0x${string}`,
+        creator as `0x${string}`,
+        aiModel,
+        ipfsCid,
+      ],
+      account: (await import("../config/chain.js")).operatorAccount,
+    });
+    txHash = await registryWrite.write.attest(request.args);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("AlreadyAttested") || msg.includes("gas")) {
+      throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);
+    }
+    throw err;
+  }
 
   // 6. Finality 대기
   const receipt = await publicClient.waitForTransactionReceipt({
