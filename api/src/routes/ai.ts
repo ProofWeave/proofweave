@@ -158,7 +158,7 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
   }
 
   // 3. 모델별 Rate limit
-  const userKey = req.body.walletAddress || req.ip || "unknown";
+  const userKey = req.apiKeyOwner || req.ip || "unknown";
   const { allowed, remaining } = checkModelLimit(userKey, modelId, modelConfig.dailyLimit);
 
   if (!allowed) {
@@ -171,13 +171,16 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
     return;
   }
 
-  // 4. Gemini 호출
+  // 4. Gemini 호출 (Google Search grounding 활성화)
   try {
     const ai = getGenAI();
 
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
     });
 
     const text = response.text ?? "";
@@ -192,6 +195,15 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
     const outputCost = (outputTokens / 1_000_000) * modelConfig.outputCostPer1M;
     const estimatedCost = +(inputCost + outputCost).toFixed(6);
 
+    // Google Search grounding 메타데이터 추출
+    const grounding = response.candidates?.[0]?.groundingMetadata;
+    const sources = grounding?.groundingChunks
+      ?.filter((c) => c.web)
+      .map((c) => ({
+        url: c.web?.uri,
+        title: c.web?.title,
+      })) ?? [];
+
     res.json({
       result: text,
       model: modelId,
@@ -202,6 +214,7 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
       estimatedCost,
       remaining,
       dailyLimit: modelConfig.dailyLimit,
+      sources,
     });
   } catch (err: unknown) {
     console.error("[ai/analyze] Gemini error:", err);
