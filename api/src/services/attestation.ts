@@ -104,23 +104,49 @@ export async function createAttestation(params: {
     // AttestationNotFound는 정상 (아직 없음) — 계속 진행
   }
 
-  // 6. 온체인 attest tx
+  // 6. 온체인 attest tx (simulateContract → writeContract with manual gas)
   let txHash: `0x${string}`;
+  const attestArgs = [
+    contentHash as `0x${string}`,
+    creator as `0x${string}`,
+    aiModel,
+    ipfsCid,
+  ] as const;
+
   try {
-    txHash = await registryWrite.write.attest([
-      contentHash as `0x${string}`,
-      creator as `0x${string}`,
-      aiModel,
-      ipfsCid,
-    ]);
+    // 6a. simulateContract로 revert 사전 감지 (gas estimation 없이 revert만 확인)
+    await publicClient.simulateContract({
+      address: env.PROXY_ADDRESS as `0x${string}`,
+      abi: attestationRegistryAbi,
+      functionName: "attest",
+      args: attestArgs,
+      account: (await import("../config/chain.js")).operatorAccount,
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[attest] Chain write failed:", msg);
-    // 구체적 컨트랙트 revert만 AlreadyAttested로 변환
+    console.error("[attest] Simulation failed:", msg.slice(0, 300));
     if (msg.includes("AlreadyAttested")) {
       throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);
     }
-    // 그 외 revert (Unauthorized, gas 등)는 원본 에러 전달
+    throw new Error(`Contract simulation failed: ${msg.slice(0, 200)}`);
+  }
+
+  try {
+    // 6b. 실제 TX 전송 — gas를 수동 지정하여 공개 RPC의 estimation 불안정 회피
+    const { walletClient: wc } = await import("../config/chain.js");
+    txHash = await wc.writeContract({
+      address: env.PROXY_ADDRESS as `0x${string}`,
+      abi: attestationRegistryAbi,
+      functionName: "attest",
+      args: attestArgs,
+      gas: 500_000n, // attest는 ~150k gas 사용, 여유 포함
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[attest] Chain write failed:", msg.slice(0, 300));
+    if (msg.includes("AlreadyAttested")) {
+      throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);
+    }
     throw new Error(`Chain write failed: ${msg.slice(0, 200)}`);
   }
 
