@@ -65,8 +65,8 @@ export async function createAttestation(params: {
   // 2. 중복 체크: 이미 DB에 같은 contentHash+creator가 있으면 거부
   //    (체인 AlreadyAttested revert 전에 빠르게 실패)
   const existing = await pool.query(
-    `SELECT attestation_id FROM attestations WHERE content_hash = $1 AND creator = $2`,
-    [contentHash, creator.toLowerCase()]
+    `SELECT attestation_id FROM attestations WHERE content_hash = $1 AND LOWER(creator) = LOWER($2)`,
+    [contentHash, creator]
   );
   if (existing.rows.length > 0) {
     throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);

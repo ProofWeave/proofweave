@@ -62,6 +62,10 @@ class ApiClient {
     }
 
     if (!res.ok) {
+      if (res.status === 401) {
+        // API key가 만료/revoked → 클리어하여 AuthContext가 재발급하도록
+        this.clearApiKey();
+      }
       if (res.status === 402) {
         const paymentBody = await res.json();
         throw new PaymentRequiredError(paymentBody);
