@@ -83,6 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // auth 상태 변경 리스너
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, s) => {
+        // TOKEN_REFRESHED: 토큰만 갱신, user 동일 → 불필요한 re-render 방지
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(s);
+          // user는 변경하지 않음 (동일 사용자)
+          return;
+        }
+
         setSession(s);
         setUser(s?.user ?? null);
         setLoading(false);
