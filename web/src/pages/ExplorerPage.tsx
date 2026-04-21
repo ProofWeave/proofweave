@@ -16,12 +16,14 @@ interface Attestation {
 
 interface SearchResult {
   count: number;
+  totalCount: number;
   attestations: Attestation[];
 }
 
 export function ExplorerPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Attestation[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
@@ -55,11 +57,13 @@ export function ExplorerPage() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ page: String(p), limit: '20' });
+      const limit = 20;
+      const params = new URLSearchParams({ limit: String(limit), offset: String((p - 1) * limit) });
       if (query.trim()) params.set('q', query.trim());
 
       const data = await api.get<SearchResult>(`/search?${params}`);
       setResults(data.attestations || []);
+      setTotalCount(data.totalCount ?? data.count);
       setPage(p);
       setSearched(true);
     } catch (err: unknown) {
@@ -222,7 +226,7 @@ export function ExplorerPage() {
         {results.length > 0 && (
           <div className="flex items-center justify-between mt-16">
             <span className="text-xs text-muted">
-              페이지 {page} · {results.length}건 표시
+              전체 {totalCount}건 · 페이지 {page}
             </span>
             <div className="flex gap-8">
               <button
@@ -234,7 +238,7 @@ export function ExplorerPage() {
               </button>
               <button
                 className="btn btn-secondary btn-sm"
-                disabled={results.length < 20}
+                disabled={page * 20 >= totalCount}
                 onClick={() => handleSearch(page + 1)}
               >
                 다음 <ChevronRight size={14} />

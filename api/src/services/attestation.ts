@@ -22,10 +22,16 @@ export interface AttestationRecord {
 }
 
 export interface SearchFilters {
+  q?: string;          // 범용 검색어 (자동 패턴 감지)
   creator?: string;
   aiModel?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface SearchResult {
+  attestations: AttestationRecord[];
+  totalCount: number;
 }
 
 // ── 핵심: attest ──────────────────────────────────────────
@@ -333,14 +339,34 @@ export async function verifyAttestation(
  */
 export async function searchAttestations(
   filters: SearchFilters
-): Promise<AttestationRecord[]> {
+): Promise<SearchResult> {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
 
+  // q 파라미터: 문맥 기반 자동 감지
+  if (filters.q) {
+    const q = filters.q.trim();
+    const isHex64 = /^0x[0-9a-fA-F]{64}$/.test(q);  // hash (attestation_id, content_hash, tx_hash)
+    const isHex40 = /^0x[0-9a-fA-F]{40}$/.test(q);  // address (creator)
+
+    if (isHex64) {
+      conditions.push(`(attestation_id = $${paramIdx} OR content_hash = $${paramIdx} OR tx_hash = $${paramIdx})`);
+      params.push(q.toLowerCase());
+      paramIdx++;
+    } else if (isHex40) {
+      conditions.push(`LOWER(creator) = LOWER($${paramIdx++})`);
+      params.push(q);
+    } else {
+      // 그 외: ai_model 부분 일치
+      conditions.push(`ai_model ILIKE $${paramIdx++}`);
+      params.push(`%${q}%`);
+    }
+  }
+
   if (filters.creator) {
-    conditions.push(`creator = $${paramIdx++}`);
-    params.push(filters.creator.toLowerCase());
+    conditions.push(`LOWER(creator) = LOWER($${paramIdx++})`);
+    params.push(filters.creator);
   }
 
   if (filters.aiModel) {
@@ -354,6 +380,14 @@ export async function searchAttestations(
   const limit = Math.min(Math.max(Number(filters.limit) || 20, 1), 100);
   const offset = Math.max(Number(filters.offset) || 0, 0);
 
+  // 전체 건수 조회
+  const countResult = await pool.query(
+    `SELECT COUNT(*) FROM attestations ${where}`,
+    params
+  );
+  const totalCount = Number(countResult.rows[0].count);
+
+  // 결과 조회 (LIMIT/OFFSET)
   const result = await pool.query(
     `SELECT attestation_id, content_hash, creator, ai_model, offchain_ref,
             block_number, block_timestamp, tx_hash, created_at
@@ -363,17 +397,20 @@ export async function searchAttestations(
     [...params, limit, offset]
   );
 
-  return result.rows.map((row) => ({
-    attestationId: row.attestation_id,
-    contentHash: row.content_hash,
-    creator: row.creator,
-    aiModel: row.ai_model,
-    offchainRef: row.offchain_ref,
-    blockNumber: Number(row.block_number),
-    blockTimestamp: row.block_timestamp,
-    txHash: row.tx_hash,
-    createdAt: row.created_at,
-  }));
+  return {
+    totalCount,
+    attestations: result.rows.map((row) => ({
+      attestationId: row.attestation_id,
+      contentHash: row.content_hash,
+      creator: row.creator,
+      aiModel: row.ai_model,
+      offchainRef: row.offchain_ref,
+      blockNumber: Number(row.block_number),
+      blockTimestamp: row.block_timestamp,
+      txHash: row.tx_hash,
+      createdAt: row.created_at,
+    })),
+  };
 }
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────

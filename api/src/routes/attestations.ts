@@ -125,14 +125,15 @@ attestationsRouter.get("/verify/:contentHash", async (req, res) => {
  * Query: ?creator=0x...&aiModel=gpt-4o&limit=20&offset=0
  */
 attestationsRouter.get("/search", authenticate, async (req, res) => {
-  const { creator, aiModel, limit, offset } = req.query;
+  const { q, creator, aiModel, limit, offset } = req.query;
 
   // limit/offset 입력 검증
   const parsedLimit = limit ? Math.min(Math.max(Number(limit) || 10, 1), 100) : 10;
   const parsedOffset = offset ? Math.max(Number(offset) || 0, 0) : 0;
 
   try {
-    const results = await searchAttestations({
+    const result = await searchAttestations({
+      q: q as string | undefined,
       creator: creator as string | undefined,
       aiModel: aiModel as string | undefined,
       limit: parsedLimit,
@@ -140,8 +141,9 @@ attestationsRouter.get("/search", authenticate, async (req, res) => {
     });
 
     res.status(200).json({
-      count: results.length,
-      attestations: results,
+      count: result.attestations.length,
+      totalCount: result.totalCount,
+      attestations: result.attestations,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
