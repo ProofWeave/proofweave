@@ -104,28 +104,24 @@ export async function createAttestation(params: {
     // AttestationNotFound는 정상 (아직 없음) — 계속 진행
   }
 
-  // 6. 온체인 attest tx (simulateContract로 revert 사전 감지)
+  // 6. 온체인 attest tx
   let txHash: `0x${string}`;
   try {
-    const { request } = await publicClient.simulateContract({
-      address: env.PROXY_ADDRESS as `0x${string}`,
-      abi: attestationRegistryAbi,
-      functionName: "attest",
-      args: [
-        contentHash as `0x${string}`,
-        creator as `0x${string}`,
-        aiModel,
-        ipfsCid,
-      ],
-      account: (await import("../config/chain.js")).operatorAccount,
-    });
-    txHash = await registryWrite.write.attest(request.args);
+    txHash = await registryWrite.write.attest([
+      contentHash as `0x${string}`,
+      creator as `0x${string}`,
+      aiModel,
+      ipfsCid,
+    ]);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("AlreadyAttested") || msg.includes("gas")) {
+    console.error("[attest] Chain write failed:", msg);
+    // 구체적 컨트랙트 revert만 AlreadyAttested로 변환
+    if (msg.includes("AlreadyAttested")) {
       throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);
     }
-    throw err;
+    // 그 외 revert (Unauthorized, gas 등)는 원본 에러 전달
+    throw new Error(`Chain write failed: ${msg.slice(0, 200)}`);
   }
 
   // 6. Finality 대기

@@ -117,7 +117,7 @@ function getRemaining(userKey: string, modelId: string, limit: number): number {
 
 // ── GET /ai/models — 사용 가능한 모델 목록 ────────────────
 aiRouter.get("/ai/models", authenticate, (req, res) => {
-  const userKey = req.body.walletAddress || req.ip || "unknown";
+  const userKey = req.apiKeyOwner || req.ip || "unknown";
 
   const models = SUPPORTED_MODELS.map((m) => ({
     id: m.id,
