@@ -1606,3 +1606,279 @@ tr:hover td {
   gap: 4px;
   align-items: center;
 }
+
+/* ============================================================
+   Landing Page — Organic Loader Animations
+   ============================================================ */
+
+.landing {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Floating Canvas (behind content) ──────────────────────── */
+.landing-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Blob Morph ────────────────────────────────────────────── */
+@keyframes blobMorph {
+  0%, 100% {
+    border-radius: 42% 58% 60% 40% / 45% 50% 50% 55%;
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    border-radius: 55% 45% 40% 60% / 60% 35% 65% 40%;
+    transform: translate(8px, -12px) scale(1.05);
+  }
+  50% {
+    border-radius: 40% 60% 55% 45% / 50% 60% 40% 50%;
+    transform: translate(-6px, 8px) scale(0.95);
+  }
+  75% {
+    border-radius: 60% 40% 45% 55% / 40% 55% 45% 60%;
+    transform: translate(10px, 4px) scale(1.02);
+  }
+}
+
+.landing-blob {
+  position: absolute;
+  background: var(--text-primary);
+  opacity: 0.06;
+  animation: blobMorph 8s ease-in-out infinite;
+}
+
+/* ── Orbit Dots ────────────────────────────────────────────── */
+@keyframes orbitSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.3; transform: rotate(var(--rot)) translateX(20px) scale(0.6); }
+  50% { opacity: 0.8; transform: rotate(var(--rot)) translateX(20px) scale(1); }
+}
+
+.landing-orbit {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  animation: orbitSpin 12s linear infinite;
+}
+
+.landing-orbit__dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  opacity: 0.15;
+  top: 50%;
+  left: 50%;
+  margin: -3px 0 0 -3px;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+/* ── Pulse Ring ────────────────────────────────────────────── */
+@keyframes pulseExpand {
+  0% { transform: scale(0.5); opacity: 0.25; }
+  50% { transform: scale(1.2); opacity: 0.05; }
+  100% { transform: scale(0.5); opacity: 0.25; }
+}
+
+.landing-pulse-ring {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border: 2px solid var(--text-primary);
+  border-radius: 50%;
+  opacity: 0.08;
+  animation: pulseExpand 5s ease-in-out infinite;
+}
+
+.landing-pulse-ring__inner {
+  position: absolute;
+  inset: 30%;
+  background: var(--text-primary);
+  border-radius: 50%;
+  opacity: 0.3;
+}
+
+/* ── Floating Dots ─────────────────────────────────────────── */
+@keyframes floatDrift {
+  0%, 100% { transform: translate(0, 0); opacity: 0.12; }
+  33% { transform: translate(10px, -15px); opacity: 0.2; }
+  66% { transform: translate(-8px, 10px); opacity: 0.08; }
+}
+
+.landing-float-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--text-primary);
+  animation: floatDrift 6s ease-in-out infinite;
+}
+
+/* ── Content Layer ─────────────────────────────────────────── */
+.landing-content {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+/* ── Logo ──────────────────────────────────────────────────── */
+.landing-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.landing-logo__icon {
+  flex-shrink: 0;
+}
+
+.landing-logo__text {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+/* ── Hero Text ─────────────────────────────────────────────── */
+.landing-hero {
+  margin-bottom: 64px;
+}
+
+.landing-tagline {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}
+
+.landing-description {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 540px;
+  margin: 0 auto 32px;
+}
+
+/* ── CTA Button ────────────────────────────────────────────── */
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 36px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: 0 4px 20px rgba(34, 24, 28, 0.15);
+}
+
+.landing-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(34, 24, 28, 0.25);
+}
+
+.landing-cta:active {
+  transform: scale(0.97);
+}
+
+/* ── Features ──────────────────────────────────────────────── */
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.landing-feature {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 28px 20px;
+  text-align: center;
+  transition: all var(--transition-base);
+}
+
+.landing-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+}
+
+.landing-feature__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--accent-purple-dim);
+  color: var(--accent-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.landing-feature h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.landing-feature p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+.landing-footer {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .landing-content {
+    padding: 32px 20px;
+  }
+
+  .landing-logo__text {
+    font-size: 1.8rem;
+  }
+
+  .landing-tagline {
+    font-size: 1.2rem;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .landing-blob {
+    opacity: 0.04;
+  }
+}
+
