@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bot, Edit3, Sparkles, FileCheck, Send, RotateCcw, User, ShieldAlert, CheckCircle } from 'lucide-react';
+import Markdown from 'react-markdown';
 import { api } from '../lib/api';
 import { evaluatePromptGuard } from '../lib/taintGuard';
 
@@ -376,6 +377,10 @@ export function AttestPage() {
                       text={msg.content}
                       onComplete={() => handleStreamComplete(msg.id)}
                     />
+                  ) : msg.role === 'ai' ? (
+                    <div className="chat-markdown">
+                      <Markdown>{msg.content}</Markdown>
+                    </div>
                   ) : (
                     msg.content
                   )}
