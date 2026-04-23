@@ -29,12 +29,12 @@ export interface AttestationWithMetadata {
 // ── Domain color mapping ────────────────────────────────────
 
 const DOMAIN_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  defi:             { bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.3)',  text: '#A78BFA' },
-  smart_contract:   { bg: 'rgba(6, 182, 212, 0.12)',  border: 'rgba(6, 182, 212, 0.3)',   text: '#22D3EE' },
-  security:         { bg: 'rgba(239, 68, 68, 0.12)',   border: 'rgba(239, 68, 68, 0.3)',   text: '#F87171' },
-  legal:            { bg: 'rgba(245, 158, 11, 0.12)',  border: 'rgba(245, 158, 11, 0.3)',  text: '#FBBF24' },
-  data_analysis:    { bg: 'rgba(34, 197, 94, 0.12)',   border: 'rgba(34, 197, 94, 0.3)',   text: '#4ADE80' },
-  general:          { bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.2)', text: '#94A3B8' },
+  defi:             { bg: 'rgba(139, 58, 74, 0.08)',  border: 'rgba(139, 58, 74, 0.20)',  text: '#8B3A4A' },
+  smart_contract:   { bg: 'rgba(90, 125, 124, 0.08)', border: 'rgba(90, 125, 124, 0.20)', text: '#5A7D7C' },
+  security:         { bg: 'rgba(181, 66, 72, 0.08)',  border: 'rgba(181, 66, 72, 0.20)',  text: '#B54248' },
+  legal:            { bg: 'rgba(158, 107, 58, 0.08)', border: 'rgba(158, 107, 58, 0.20)', text: '#9E6B3A' },
+  data_analysis:    { bg: 'rgba(74, 124, 89, 0.08)',  border: 'rgba(74, 124, 89, 0.20)',  text: '#4A7C59' },
+  general:          { bg: 'rgba(142, 122, 128, 0.08)',border: 'rgba(142, 122, 128, 0.15)',text: '#8E7A80' },
 };
 
 function getDomainColor(domain?: string) {

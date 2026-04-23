@@ -16,7 +16,7 @@ interface Props {
   rows: AttestationRow[];
 }
 
-const COLORS = ['#8B5CF6', '#22D3EE', '#10B981', '#F59E0B', '#EF4444'];
+const COLORS = ['#8B3A4A', '#5A7D7C', '#4A7C59', '#9E6B3A', '#B54248'];
 
 export function ChartsSection({ rows }: Props) {
   const byDate = new Map<string, number>();
@@ -41,11 +41,11 @@ export function ChartsSection({ rows }: Props) {
         <div style={{ width: '100%', height: 240 }}>
           <ResponsiveContainer>
             <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27304A" />
-              <XAxis dataKey="date" stroke="#8F9BB7" fontSize={12} />
-              <YAxis stroke="#8F9BB7" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EDD3D6" />
+              <XAxis dataKey="date" stroke="#8E7A80" fontSize={12} />
+              <YAxis stroke="#8E7A80" fontSize={12} />
               <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#8B5CF6" strokeWidth={2} />
+              <Line type="monotone" dataKey="count" stroke="#8B3A4A" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -373,9 +373,9 @@ export function ExplorerPage() {
                             <span className="badge badge-success">confirmed</span>
                             {isPurchased && (
                               <span className="badge" style={{
-                                background: 'rgba(139, 92, 246, 0.15)',
+                                background: 'rgba(139, 58, 74, 0.10)',
                                 color: 'var(--accent-purple)',
-                                border: '1px solid rgba(139, 92, 246, 0.3)',
+                                border: '1px solid rgba(139, 58, 74, 0.20)',
                               }}>
                                 <ShoppingBag size={10} style={{ marginRight: 2 }} />
                                 구매됨

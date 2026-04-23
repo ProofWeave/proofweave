@@ -1,5 +1,6 @@
 /* ============================================================
-   ProofWeave Design System — Dark Mode First
+   ProofWeave Design System — Warm Light Theme
+   #F6E8EA (warm cream) + #22181C (dark burgundy) + #8B3A4A (deep rose)
    ============================================================ */
 
 /* ── Google Font ─────────────────────────────────────────────── */
@@ -7,43 +8,43 @@
 
 /* ── CSS Variables ───────────────────────────────────────────── */
 :root {
-  /* Colors — Dark Theme */
-  --bg-primary: #0B0D14;
-  --bg-secondary: #111520;
-  --bg-tertiary: #161B2E;
-  --bg-card: #131825;
-  --bg-card-hover: #1A2035;
-  --bg-elevated: #1E2440;
+  /* Colors — Warm Light Theme */
+  --bg-primary: #F6E8EA;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F0DDE0;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FBF3F4;
+  --bg-elevated: #EDD3D6;
 
-  /* Accent */
-  --accent-purple: #8B5CF6;
-  --accent-purple-dim: rgba(139, 92, 246, 0.15);
-  --accent-purple-glow: rgba(139, 92, 246, 0.3);
-  --accent-cyan: #06B6D4;
-  --accent-cyan-dim: rgba(6, 182, 212, 0.15);
-  --accent-green: #22C55E;
-  --accent-green-dim: rgba(34, 197, 94, 0.15);
-  --accent-amber: #F59E0B;
-  --accent-amber-dim: rgba(245, 158, 11, 0.15);
-  --accent-red: #EF4444;
-  --accent-red-dim: rgba(239, 68, 68, 0.15);
+  /* Accent — Deep Rose (point color) */
+  --accent-purple: #8B3A4A;
+  --accent-purple-dim: rgba(139, 58, 74, 0.10);
+  --accent-purple-glow: rgba(139, 58, 74, 0.20);
+  --accent-cyan: #5A7D7C;
+  --accent-cyan-dim: rgba(90, 125, 124, 0.10);
+  --accent-green: #4A7C59;
+  --accent-green-dim: rgba(74, 124, 89, 0.10);
+  --accent-amber: #9E6B3A;
+  --accent-amber-dim: rgba(158, 107, 58, 0.10);
+  --accent-red: #B54248;
+  --accent-red-dim: rgba(181, 66, 72, 0.10);
 
   /* Text */
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-accent: #8B5CF6;
+  --text-primary: #22181C;
+  --text-secondary: #5C4349;
+  --text-muted: #8E7A80;
+  --text-accent: #8B3A4A;
 
   /* Borders */
-  --border-subtle: rgba(148, 163, 184, 0.08);
-  --border-default: rgba(148, 163, 184, 0.12);
-  --border-hover: rgba(139, 92, 246, 0.3);
-  --border-active: rgba(139, 92, 246, 0.6);
+  --border-subtle: rgba(34, 24, 28, 0.06);
+  --border-default: rgba(34, 24, 28, 0.12);
+  --border-hover: rgba(139, 58, 74, 0.25);
+  --border-active: rgba(139, 58, 74, 0.5);
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  /* Shadows — softer for light mode */
+  --shadow-sm: 0 1px 3px rgba(34, 24, 28, 0.06);
+  --shadow-md: 0 4px 16px rgba(34, 24, 28, 0.08);
+  --shadow-lg: 0 8px 32px rgba(34, 24, 28, 0.12);
   --shadow-glow: 0 0 20px var(--accent-purple-glow);
 
   /* Spacing & Sizing */
@@ -133,10 +134,7 @@ a:hover {
 .sidebar-logo h1 {
   font-size: 1.25rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent-purple);
   letter-spacing: -0.02em;
 }
 
@@ -201,7 +199,7 @@ a:hover {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+  background: var(--accent-purple);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -361,7 +359,7 @@ a:hover {
 }
 
 .btn-primary:hover {
-  background: #7C3AED;
+  background: #6E2D3C;
   box-shadow: 0 0 20px var(--accent-purple-glow);
   transform: translateY(-1px);
 }
@@ -537,7 +535,7 @@ tr:hover td {
 
 .tab.active {
   background: var(--accent-purple);
-  color: white;
+  color: #FFFFFF;
   font-weight: 600;
 }
 
@@ -616,7 +614,7 @@ tr:hover td {
   position: absolute;
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, var(--accent-purple-glow) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(139, 58, 74, 0.15) 0%, transparent 70%);
   top: 20%;
   left: 30%;
   filter: blur(100px);
@@ -628,7 +626,7 @@ tr:hover td {
   position: absolute;
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, var(--accent-cyan-dim) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(90, 125, 124, 0.08) 0%, transparent 70%);
   bottom: 20%;
   right: 20%;
   filter: blur(80px);
@@ -652,10 +650,7 @@ tr:hover td {
   font-weight: 800;
   text-align: center;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent-purple);
 }
 
 .auth-subtitle {
@@ -908,7 +903,7 @@ tr:hover td {
 .admin-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.74);
+  background: rgba(34, 24, 28, 0.55);
   z-index: 120;
   display: flex;
   justify-content: center;
@@ -949,7 +944,7 @@ tr:hover td {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.74);
+  background: rgba(34, 24, 28, 0.55);
   backdrop-filter: blur(4px);
   z-index: 200;
   display: flex;
@@ -1275,7 +1270,7 @@ tr:hover td {
 }
 
 .attestation-card__action:hover {
-  background: #7C3AED;
+  background: #6E2D3C;
   box-shadow: 0 0 12px var(--accent-purple-glow);
 }
 
@@ -1441,7 +1436,7 @@ tr:hover td {
 .filter-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.65);
+  background: rgba(34, 24, 28, 0.40);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 300;
@@ -1543,9 +1538,9 @@ tr:hover td {
 }
 
 .filter-chip--active:hover {
-  background: #7C3AED;
-  color: white;
-  border-color: #7C3AED;
+  background: #6E2D3C;
+  color: #FFFFFF;
+  border-color: #6E2D3C;
 }
 
 .filter-chip__count {
