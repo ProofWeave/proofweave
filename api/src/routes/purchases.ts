@@ -10,7 +10,7 @@ export const purchasesRouter = Router();
  */
 purchasesRouter.get("/purchases/mine", authenticate, async (req, res) => {
   try {
-    const payer = req.apiKeyOwner!;
+    const payer = req.apiKeyOwner!.toLowerCase();
     const result = await pool.query(
       `SELECT DISTINCT attestation_id FROM access_receipts
        WHERE payer = $1
@@ -32,7 +32,7 @@ purchasesRouter.get("/purchases/mine", authenticate, async (req, res) => {
  */
 purchasesRouter.get("/purchases/history", authenticate, async (req, res) => {
   try {
-    const payer = req.apiKeyOwner!;
+    const payer = req.apiKeyOwner!.toLowerCase();
     const result = await pool.query(
       `SELECT
          pl.attestation_id,

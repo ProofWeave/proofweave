@@ -84,7 +84,7 @@ export function DashboardPage() {
         ]);
 
         setRecent(searchData.attestations || []);
-        setStats({ total: searchData.count || 0, myData: statsData?.totalAttestations || 0 });
+        setStats({ total: searchData.totalCount || searchData.count || 0, myData: statsData?.totalAttestations || 0 });
         if (statsData) {
           setMyStats({
             purchases: statsData.totalPurchases,

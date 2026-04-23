@@ -163,17 +163,26 @@ CREATE INDEX IF NOT EXISTS idx_attestations_metadata
   ON attestations USING GIN (metadata jsonb_path_ops);
 `;
 
-async function migrate() {
+/**
+ * 서버 시작 시 import하여 호출 가능한 마이그레이션 함수
+ * pool.end()를 호출하지 않아 서버 커넥션 풀이 유지됨
+ */
+export async function runMigrations(): Promise<void> {
   console.log("🔄 Running database migration...");
   try {
     await pool.query(SCHEMA);
-    console.log("✅ Migration complete — 6 tables created");
+    console.log("✅ Migration complete — schema up to date");
   } catch (err) {
     console.error("❌ Migration failed:", err);
-    process.exit(1);
-  } finally {
-    await pool.end();
+    throw err;
   }
 }
 
-migrate();
+// 스크립트 직접 실행 시 (npx tsx src/db/migrate.ts)
+const isDirectRun = process.argv[1]?.includes("migrate");
+if (isDirectRun) {
+  runMigrations()
+    .then(() => pool.end())
+    .catch(() => process.exit(1));
+}
+

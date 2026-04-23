@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { env } from "./config/env.js";
+import { runMigrations } from "./db/migrate.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { pricingRouter } from "./routes/pricing.js";
@@ -47,15 +48,26 @@ app.use(taintGuardRouter);     // POST /taint/evaluate (authenticated)
 // ── Error Handler ───────────────────────────────────────────
 app.use(errorHandler);
 
-// ── Start ───────────────────────────────────────────────────
-app.listen(env.PORT, () => {
-  console.log(`
+// ── Start (마이그레이션 → 서버 리슨) ─────────────────────────
+async function start() {
+  try {
+    await runMigrations();
+  } catch {
+    console.error("⚠️ Migration failed — server starting without migration");
+  }
+
+  app.listen(env.PORT, () => {
+    console.log(`
   ╔═══════════════════════════════════════╗
   ║  ProofWeave API Server                ║
   ║  Port: ${String(env.PORT).padEnd(30)}║
   ║  Health: http://localhost:${env.PORT}/health  ║
   ╚═══════════════════════════════════════╝
   `);
-});
+  });
+}
+
+start();
 
 export { app };
+
