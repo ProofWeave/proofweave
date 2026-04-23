@@ -2,6 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 import { pool } from "./db.js";
 import { env } from "../config/env.js";
 import { redactPII } from "./sanitize.js";
+import { downloadIPFSPayload } from "./ipfs.js";
+import { decryptData, decryptDataV2 } from "./crypto.js";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -312,32 +314,60 @@ function detectFormat(data: Record<string, unknown>): string {
 }
 
 /**
- * metadata_status = 'failed'인 항목을 재시도 (서버 시작 시 1회 호출)
+ * metadata_status = 'failed' 또는 잘못 채워진 항목을 IPFS에서 원본 데이터를 복호화하여 재시도
  */
 export async function retryFailedMetadata(): Promise<void> {
   try {
     const result = await pool.query(
-      `SELECT attestation_id, ai_model FROM attestations
+      `SELECT attestation_id, ai_model, offchain_ref, encryption_salt,
+              encryption_version, content_hash
+       FROM attestations
        WHERE metadata_status = 'failed'
+          OR (metadata_status = 'ready'
+              AND (metadata->>'title' ILIKE '%접근%오류%' OR metadata->>'title' ILIKE '%retry%'))
        ORDER BY created_at DESC LIMIT 20`
     );
 
     if (result.rows.length === 0) return;
 
-    console.log(`[metadata] Retrying ${result.rows.length} failed enrichments...`);
+    console.log(`[metadata] Retrying ${result.rows.length} failed enrichments with real data...`);
+    const encryptionKey = env.DATA_ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      console.warn("[metadata] DATA_ENCRYPTION_KEY not set — cannot retry");
+      return;
+    }
 
     for (const row of result.rows) {
-      // pending으로 마킹 후 재시도
-      await pool.query(
-        `UPDATE attestations SET metadata_status = 'pending' WHERE attestation_id = $1`,
-        [row.attestation_id]
-      );
+      try {
+        // 1. IPFS에서 암호화된 페이로드 다운로드
+        const ipfsData = await downloadIPFSPayload(row.offchain_ref);
 
-      // fire-and-forget: 실제 데이터가 IPFS에 있어 복호화 필요 → 여기선 간단히 빈 데이터로 재시도
-      enrichWithLLM(row.attestation_id, {
-        prompt: "(retry — original data encrypted on IPFS)",
-        result: "(retry — see attestation for details)",
-      }, row.ai_model).catch(() => {});
+        // 2. 복호화
+        let plaintext: string;
+        const encVer: number = row.encryption_version ?? 1;
+
+        if (encVer === 2 && ipfsData.version === 2) {
+          plaintext = decryptDataV2(ipfsData.encrypted, ipfsData.wrappedDEK, encryptionKey);
+        } else {
+          const salt: string = row.encryption_salt ?? row.content_hash;
+          plaintext = decryptData(ipfsData.encrypted, encryptionKey, salt);
+        }
+
+        const data = JSON.parse(plaintext) as Record<string, unknown>;
+
+        // 3. pending 마킹 후 실제 데이터로 재보강
+        await pool.query(
+          `UPDATE attestations SET metadata_status = 'pending' WHERE attestation_id = $1`,
+          [row.attestation_id]
+        );
+
+        enrichWithLLM(row.attestation_id, data, row.ai_model).catch(() => {});
+      } catch (innerErr) {
+        console.warn(
+          `[metadata] retry skip ${row.attestation_id}:`,
+          innerErr instanceof Error ? innerErr.message : innerErr
+        );
+      }
     }
   } catch (err) {
     console.warn("[metadata] Failed to retry metadata:", err instanceof Error ? err.message : err);
