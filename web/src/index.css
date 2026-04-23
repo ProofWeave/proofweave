@@ -2602,3 +2602,221 @@ tr:hover td {
   text-decoration: underline;
 }
 
+/* ============================================================
+   Detail Modal (Attestation Preview + Data Viewer)
+   ============================================================ */
+
+.detail-modal {
+  max-width: 620px !important;
+  width: 94vw !important;
+}
+
+/* ── Preview Section ────────────────────────────────────────── */
+.detail-preview {
+  padding: 4px 0 8px;
+}
+
+.detail-preview__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.detail-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.detail-preview__abstract {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0 0 14px;
+}
+
+.detail-preview__keywords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.detail-preview__keyword {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.detail-preview__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.detail-preview__info {
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.detail-preview__info-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.detail-preview__info-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-preview__id {
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-preview__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-preview__actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* ── Data Viewer ────────────────────────────────────────────── */
+.detail-data {
+  padding: 4px 0;
+}
+
+.detail-data__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.detail-data__toggle {
+  display: flex;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+}
+
+.detail-data__toggle button {
+  padding: 4px 12px;
+  background: var(--bg-secondary);
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition-fast);
+}
+
+.detail-data__toggle button:first-child {
+  border-right: 1px solid var(--border-default);
+}
+
+.detail-data__toggle button.active {
+  background: var(--accent-purple);
+  color: white;
+}
+
+.detail-data__toggle button:hover:not(.active) {
+  background: var(--bg-tertiary);
+}
+
+.detail-data__content {
+  max-height: 400px;
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.detail-data__content::-webkit-scrollbar {
+  width: 5px;
+}
+
+.detail-data__content::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 999px;
+}
+
+.detail-data__json {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+/* ── Keyword Toggle ─────────────────────────────────────────── */
+.attestation-card__keyword--toggle {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--accent-purple-dim);
+  border: 1px solid rgba(139, 58, 74, 0.15);
+  color: var(--accent-purple);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.7rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  transition: all var(--transition-fast);
+}
+
+.attestation-card__keyword--toggle:hover {
+  background: rgba(139, 58, 74, 0.15);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .detail-preview__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-preview__actions {
+    flex-direction: column;
+  }
+
+  .detail-data__content {
+    max-height: 300px;
+  }
+}
+

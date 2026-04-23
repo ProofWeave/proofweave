@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useModalKeyboard, useModalRef } from '../hooks/useModalKeyboard';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -28,13 +29,16 @@ export function FilterPickerModal({
   onClear,
   onClose,
 }: FilterPickerModalProps) {
+  const modalRef = useModalRef();
+  useModalKeyboard({ open, onClose, containerRef: modalRef });
+
   if (!open) return null;
 
   const selectedCount = selected.length;
 
   return (
     <div className="filter-modal-overlay" onClick={onClose}>
-      <div className="filter-modal" onClick={(e) => e.stopPropagation()}>
+      <div ref={modalRef} className="filter-modal" onClick={(e) => e.stopPropagation()}>
         <div className="filter-modal__header">
           <h3>
             {title}

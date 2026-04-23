@@ -1,4 +1,5 @@
-import { ExternalLink, FileSearch, ShoppingBag, Code, Globe, Cpu } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, FileSearch, ShoppingBag, Code, Globe, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -61,10 +62,13 @@ interface AttestationCardProps {
   onSelect: (id: string) => void;
 }
 
+const KEYWORD_LIMIT = 6;
+
 export function AttestationCard({ attestation, isPurchased, onSelect }: AttestationCardProps) {
   const meta = attestation.metadata;
   const domainColor = getDomainColor(meta?.domain);
   const hasMetadata = meta?.metadataStatus === 'ready' && meta?.title;
+  const [keywordsExpanded, setKeywordsExpanded] = useState(false);
 
   const truncateHash = (hash: string) =>
     hash.length > 14 ? `${hash.slice(0, 8)}…${hash.slice(-6)}` : hash;
@@ -78,6 +82,15 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
     } catch {
       return dateStr;
     }
+  };
+
+  const allKeywords = meta?.keywords ?? [];
+  const visibleKeywords = keywordsExpanded ? allKeywords : allKeywords.slice(0, KEYWORD_LIMIT);
+  const hasMore = allKeywords.length > KEYWORD_LIMIT;
+
+  const toggleKeywords = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setKeywordsExpanded((prev) => !prev);
   };
 
   return (
@@ -130,14 +143,24 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
         <p className="attestation-card__abstract">{meta.abstract}</p>
       )}
 
-      {/* Keywords */}
-      {hasMetadata && meta?.keywords && meta.keywords.length > 0 && (
+      {/* Keywords — expandable */}
+      {hasMetadata && allKeywords.length > 0 && (
         <div className="attestation-card__keywords">
-          {meta.keywords.slice(0, 8).map((kw) => (
+          {visibleKeywords.map((kw) => (
             <span key={kw} className="attestation-card__keyword">{kw}</span>
           ))}
-          {meta.keywords.length > 8 && (
-            <span className="attestation-card__keyword attestation-card__keyword--more">+{meta.keywords.length - 8}</span>
+          {hasMore && (
+            <button
+              className="attestation-card__keyword attestation-card__keyword--toggle"
+              onClick={toggleKeywords}
+              title={keywordsExpanded ? '접기' : '더보기'}
+            >
+              {keywordsExpanded ? (
+                <><ChevronUp size={11} /> 접기</>
+              ) : (
+                <>+{allKeywords.length - KEYWORD_LIMIT} <ChevronDown size={11} /></>
+              )}
+            </button>
           )}
         </div>
       )}
