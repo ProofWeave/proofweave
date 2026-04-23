@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard,
@@ -24,11 +24,20 @@ const NAV_ITEMS = [
 
 export function AppLayout() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState('');
 
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
     : '??';
+
+  const handleGlobalSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && globalSearch.trim()) {
+      navigate(`/explorer?q=${encodeURIComponent(globalSearch.trim())}`);
+      setGlobalSearch('');
+    }
+  };
 
   return (
     <div className="app-layout">
@@ -86,6 +95,17 @@ export function AppLayout() {
       </aside>
 
       <main className="app-main" role="main">
+        {/* Global Search Bar */}
+        <div className="header-search">
+          <Search size={14} />
+          <input
+            id="global-search-input"
+            placeholder="데이터 검색... (Enter)"
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            onKeyDown={handleGlobalSearch}
+          />
+        </div>
         <Outlet />
       </main>
 

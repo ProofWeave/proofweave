@@ -34,6 +34,12 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- T5: Envelope Encryption 버전 추적 (1=HKDF legacy, 2=Envelope DEK)
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN encryption_version INT DEFAULT 1;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_attestations_creator ON attestations(creator);
 CREATE INDEX IF NOT EXISTS idx_attestations_content_hash ON attestations(content_hash);
 CREATE INDEX IF NOT EXISTS idx_attestations_ai_model ON attestations(ai_model);
@@ -129,6 +135,32 @@ CREATE TABLE IF NOT EXISTS payment_quotes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_quotes_payer ON payment_quotes(payer);
+
+-- ============================================================
+--  T3: 메타데이터 매니페스트 시스템
+-- ============================================================
+
+-- attestations 테이블에 메타데이터 컬럼 추가
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN metadata JSONB DEFAULT '{}';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN keywords TEXT[] DEFAULT '{}';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE attestations ADD COLUMN metadata_status TEXT DEFAULT 'legacy';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- GIN 인덱스: 키워드 배열 검색 + JSONB 메타데이터 검색
+CREATE INDEX IF NOT EXISTS idx_attestations_keywords
+  ON attestations USING GIN (keywords);
+CREATE INDEX IF NOT EXISTS idx_attestations_metadata
+  ON attestations USING GIN (metadata jsonb_path_ops);
 `;
 
 async function migrate() {

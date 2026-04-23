@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { createAttestation } from "../services/attestation.js";
 import { setPrice } from "../services/pricing.js";
+import { pseudonymize } from "../services/sanitize.js";
 
 export const attestRouter = Router();
 
@@ -58,7 +59,7 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
 
   try {
     const result = await createAttestation({
-      data: isWebUser ? { ...data as Record<string, unknown>, submittedBy: apiKeyOwner } : data,
+      data: isWebUser ? { ...data as Record<string, unknown>, submittedBy: pseudonymize(apiKeyOwner) } : data,
       creator,
       aiModel,
     });
@@ -82,7 +83,7 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       txHash: result.txHash,
       creator,
       aiModel,
-      submittedBy: isWebUser ? apiKeyOwner : undefined,
+      // T3: submittedBy 응답에서 제거 (PII 보호)
       pricing: pricing
         ? { priceUsdMicros: pricing.priceUsdMicros, priceUsd: (pricing.priceUsdMicros / 1_000_000).toFixed(6) }
         : undefined,

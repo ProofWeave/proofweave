@@ -6,6 +6,7 @@ import {
   getAttestationDetail,
   verifyAttestation,
   searchAttestations,
+  getSearchFacets,
 } from "../services/attestation.js";
 
 export const attestationsRouter = Router();
@@ -119,13 +120,28 @@ attestationsRouter.get("/verify/:contentHash", async (req, res) => {
 });
 
 /**
+ * GET /search/facets
+ * 검색 필터 옵션 동적 조회 (인증 필요)
+ * T4: DB에서 실제 존재하는 domain/problemType 목록 반환
+ */
+attestationsRouter.get("/search/facets", authenticate, async (_req, res) => {
+  try {
+    const facets = await getSearchFacets();
+    res.status(200).json(facets);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Failed to get facets", detail: message });
+  }
+});
+
+/**
  * GET /search
  * 검색 (인증 필요)
  *
  * Query: ?creator=0x...&aiModel=gpt-4o&limit=20&offset=0
  */
 attestationsRouter.get("/search", authenticate, async (req, res) => {
-  const { q, creator, aiModel, limit, offset } = req.query;
+  const { q, domain, problemType, creator, aiModel, limit, offset } = req.query;
 
   // limit/offset 입력 검증
   const parsedLimit = limit ? Math.min(Math.max(Number(limit) || 10, 1), 100) : 10;
@@ -134,6 +150,8 @@ attestationsRouter.get("/search", authenticate, async (req, res) => {
   try {
     const result = await searchAttestations({
       q: q as string | undefined,
+      domain: domain as string | undefined,
+      problemType: problemType as string | undefined,
       creator: creator as string | undefined,
       aiModel: aiModel as string | undefined,
       limit: parsedLimit,

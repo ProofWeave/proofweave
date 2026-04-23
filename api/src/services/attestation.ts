@@ -1,11 +1,12 @@
 import { pool } from "./db.js";
-import { canonicalHash, encryptData, decryptData } from "./crypto.js";
-import { uploadEncryptedData, downloadEncryptedData } from "./ipfs.js";
+import { canonicalHash, encryptDataV2, decryptData, decryptDataV2 } from "./crypto.js";
+import { uploadEncryptedDataV2, downloadIPFSPayload } from "./ipfs.js";
 import { registryWrite, registryRead } from "../contracts/attestationRegistry.js";
 import { publicClient } from "../config/chain.js";
 import { env } from "../config/env.js";
 import { decodeEventLog } from "viem";
 import { attestationRegistryAbi } from "../contracts/abi.js";
+import { extractRuleMetadata, enrichWithLLM } from "./metadata.js";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ export interface AttestationRecord {
 
 export interface SearchFilters {
   q?: string;          // 범용 검색어 (자동 패턴 감지)
+  domain?: string;     // T3: 메타데이터 도메인 필터
+  problemType?: string; // T3: 메타데이터 문제 유형 필터
   creator?: string;
   aiModel?: string;
   limit?: number;
@@ -78,16 +81,14 @@ export async function createAttestation(params: {
     throw new Error(`AlreadyAttested: ${contentHash} by ${creator}`);
   }
 
-  // 3. AES-256-GCM 암호화 (contentHash를 HKDF salt로 사용)
-  const encryptionSalt = contentHash;
-  const encrypted = encryptData(
+  // 3. [V2] 봉투 암호화 (DEK 랜덤 생성 → 데이터 암호화 → KEK로 DEK 래핑)
+  const envelope = encryptDataV2(
     JSON.stringify(data),
-    encryptionKey,
-    encryptionSalt
+    encryptionKey
   );
 
-  // 4. IPFS 업로드 (암호화된 데이터)
-  const ipfsCid = await uploadEncryptedData(encrypted, {
+  // 4. IPFS 업로드 (V2 페이로드: encrypted + wrappedDEK)
+  const ipfsCid = await uploadEncryptedDataV2(envelope, {
     attestationId: contentHash,
     contentHash,
     aiModel,
@@ -179,11 +180,16 @@ export async function createAttestation(params: {
   // 8. DB 저장 (C-2 fix: ON CONFLICT으로 재시도 안전)
   //    content_hash + creator에 대한 재시도인 경우 기존 row 업데이트
   const block = await publicClient.getBlock({ blockNumber: receipt.blockNumber });
+
+  // T3: 규칙 기반 메타데이터 추출 (동기, 실패 없음)
+  const ruleMetadata = extractRuleMetadata(data as Record<string, unknown>, aiModel);
+
   await pool.query(
     `INSERT INTO attestations
        (attestation_id, content_hash, creator, ai_model, offchain_ref, 
-        block_number, block_timestamp, tx_hash, ipfs_cid, encryption_salt)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        block_number, block_timestamp, tx_hash, ipfs_cid, encryption_salt,
+        encryption_version, metadata, keywords, metadata_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      ON CONFLICT (attestation_id) DO UPDATE SET
        tx_hash = EXCLUDED.tx_hash,
        block_number = EXCLUDED.block_number,
@@ -198,9 +204,23 @@ export async function createAttestation(params: {
       new Date(Number(block.timestamp) * 1000).toISOString(),
       txHash,
       ipfsCid,
-      encryptionSalt,
+      contentHash,         // encryption_salt (V1 호환)
+      2,                   // encryption_version = 2 (V2 Envelope)
+      JSON.stringify(ruleMetadata),
+      [],
+      "pending",
     ]
   );
+
+  // T3: 비동기 LLM 메타데이터 보강 (fire-and-forget, 실패해도 attest 영향 없음)
+  enrichWithLLM(attestationId, data as Record<string, unknown>, aiModel)
+    .catch((err) => {
+      console.error(`[metadata] enrichment failed for ${attestationId}:`, err);
+      pool.query(
+        `UPDATE attestations SET metadata_status = 'failed' WHERE attestation_id = $1`,
+        [attestationId]
+      ).catch(() => {});
+    });
 
   return { attestationId, contentHash, ipfsCid, txHash };
 }
@@ -237,15 +257,19 @@ export async function getAttestationFromDB(
 }
 
 /**
- * 유료 상세 조회 — IPFS 다운로드 → AES 복호화 → 평문 반환
+ * 유료 상세 조회 — IPFS 다운로드 → 암호화 버전에 따라 복호화 → 평문 반환
+ *
+ * V1 (encryption_version=1): HKDF 파생키 복호화
+ * V2 (encryption_version=2): 봉투 암호화 DEK 언래핑 → 복호화
  */
 export async function getAttestationDetail(
   attestationId: string
 ): Promise<{ plaintext: object; attestation: AttestationRecord }> {
-  // 1. DB에서 attestation 정보 + encryption_salt 한 번에 조회
+  // 1. DB에서 attestation 정보 + encryption_version 조회
   const result = await pool.query(
     `SELECT attestation_id, content_hash, creator, ai_model, offchain_ref,
-            block_number, block_timestamp, tx_hash, created_at, encryption_salt
+            block_number, block_timestamp, tx_hash, created_at,
+            encryption_salt, encryption_version
      FROM attestations WHERE attestation_id = $1`,
     [attestationId]
   );
@@ -266,14 +290,24 @@ export async function getAttestationDetail(
     txHash: row.tx_hash,
     createdAt: row.created_at,
   };
-  const encryptionSalt: string = row.encryption_salt ?? row.content_hash;
 
-  // 2. IPFS에서 암호화된 데이터 다운로드
-  const ipfsData = await downloadEncryptedData(attestation.offchainRef);
-
-  // 3. AES-256-GCM 복호화
   const encryptionKey = getEncryptionKey();
-  const plaintext = decryptData(ipfsData.encrypted, encryptionKey, encryptionSalt);
+  const encryptionVersion: number = row.encryption_version ?? 1;
+
+  // 2. IPFS에서 페이로드 다운로드 (v1/v2 자동 분기)
+  const ipfsData = await downloadIPFSPayload(attestation.offchainRef);
+
+  // 3. 암호화 버전에 따라 복호화
+  let plaintext: string;
+
+  if (encryptionVersion === 2 && ipfsData.version === 2) {
+    // V2: 봉투 암호화 — DEK 언래핑 → 데이터 복호화
+    plaintext = decryptDataV2(ipfsData.encrypted, ipfsData.wrappedDEK, encryptionKey);
+  } else {
+    // V1 Legacy: HKDF 파생키 복호화
+    const encryptionSalt: string = row.encryption_salt ?? row.content_hash;
+    plaintext = decryptData(ipfsData.encrypted, encryptionKey, encryptionSalt);
+  }
 
   return {
     plaintext: JSON.parse(plaintext),
@@ -358,9 +392,17 @@ export async function searchAttestations(
       conditions.push(`LOWER(creator) = LOWER($${paramIdx++})`);
       params.push(q);
     } else {
-      // 그 외: ai_model 부분 일치
-      conditions.push(`ai_model ILIKE $${paramIdx++}`);
-      params.push(`%${q}%`);
+      // 그 외: ai_model + title ILIKE 부분 일치 + keywords 정확 일치 (T3 강화)
+      // keywords @> 연산자는 정확 일치이므로 별도 파라미터 사용
+      const ilikeParam = paramIdx++;
+      const keywordParam = paramIdx++;
+      conditions.push(`(
+        ai_model ILIKE $${ilikeParam}
+        OR metadata->>'title' ILIKE $${ilikeParam}
+        OR keywords @> ARRAY[$${keywordParam}]::TEXT[]
+      )`);
+      params.push(`%${q.toLowerCase()}%`);
+      params.push(q.toLowerCase());
     }
   }
 
@@ -372,6 +414,16 @@ export async function searchAttestations(
   if (filters.aiModel) {
     conditions.push(`ai_model = $${paramIdx++}`);
     params.push(filters.aiModel);
+  }
+
+  // T3: 메타데이터 필터
+  if (filters.domain) {
+    conditions.push(`metadata->>'domain' = $${paramIdx++}`);
+    params.push(filters.domain);
+  }
+  if (filters.problemType) {
+    conditions.push(`metadata->>'problemType' = $${paramIdx++}`);
+    params.push(filters.problemType);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -387,10 +439,11 @@ export async function searchAttestations(
   );
   const totalCount = Number(countResult.rows[0].count);
 
-  // 결과 조회 (LIMIT/OFFSET)
+  // 결과 조회 (LIMIT/OFFSET) — T3: metadata, keywords, metadata_status 추가
   const result = await pool.query(
     `SELECT attestation_id, content_hash, creator, ai_model, offchain_ref,
-            block_number, block_timestamp, tx_hash, created_at
+            block_number, block_timestamp, tx_hash, created_at,
+            metadata, keywords, metadata_status
      FROM attestations ${where}
      ORDER BY created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
@@ -409,7 +462,50 @@ export async function searchAttestations(
       blockTimestamp: row.block_timestamp,
       txHash: row.tx_hash,
       createdAt: row.created_at,
+      // T3: Tier 1 메타데이터
+      metadata: row.metadata ? {
+        title: row.metadata.title,
+        domain: row.metadata.domain,
+        problemType: row.metadata.problemType,
+        keywords: row.keywords || [],
+        abstract: row.metadata.abstract,
+        language: row.metadata.language,
+        sizeStats: row.metadata.sizeStats,
+        format: row.metadata.format,
+        metadataStatus: row.metadata_status,
+      } : undefined,
     })),
+  };
+}
+
+/**
+ * 검색 필터 옵션 동적 조회
+ * T4: LLM이 추출한 메타데이터에서 실제 존재하는 domain/problemType 목록 반환
+ */
+export async function getSearchFacets(): Promise<{
+  domains: Array<{ value: string; count: number }>;
+  problemTypes: Array<{ value: string; count: number }>;
+}> {
+  const [domainResult, ptResult] = await Promise.all([
+    pool.query(
+      `SELECT metadata->>'domain' AS value, COUNT(*) AS count
+       FROM attestations
+       WHERE metadata->>'domain' IS NOT NULL AND metadata->>'domain' != ''
+       GROUP BY metadata->>'domain'
+       ORDER BY count DESC`
+    ),
+    pool.query(
+      `SELECT metadata->>'problemType' AS value, COUNT(*) AS count
+       FROM attestations
+       WHERE metadata->>'problemType' IS NOT NULL AND metadata->>'problemType' != ''
+       GROUP BY metadata->>'problemType'
+       ORDER BY count DESC`
+    ),
+  ]);
+
+  return {
+    domains: domainResult.rows.map((r) => ({ value: r.value, count: Number(r.count) })),
+    problemTypes: ptResult.rows.map((r) => ({ value: r.value, count: Number(r.count) })),
   };
 }
 
