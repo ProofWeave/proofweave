@@ -49,6 +49,7 @@ interface AttestationRow {
 
 interface SearchResponse {
   count: number;
+  totalCount: number;
   attestations: AttestationRow[];
 }
 
