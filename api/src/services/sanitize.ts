@@ -27,6 +27,8 @@ export function redactPII(text: string): string {
     // 순서 중요: 긴 패턴부터 치환 (64바이트 hash → 40바이트 address)
     .replace(/0x[0-9a-fA-F]{64}/g, "[HASH]")
     .replace(/0x[0-9a-fA-F]{40}/g, "[ADDRESS]")
+    // ProofWeave API key (pw_ prefix, 48 hex chars)
+    .replace(/pw_[0-9a-fA-F]{48,}/g, "[API_KEY]")
     // 이메일: plus-addressing, 서브도메인 지원 + 전각 @ 처리
     .replace(/[\w.+-]+[@＠][\w.-]+\.\w{2,}/g, "[EMAIL]")
     .replace(/\b\d{6}[-\s]?\d{7}\b/g, "[RRN]")

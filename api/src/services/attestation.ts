@@ -303,10 +303,16 @@ export async function getAttestationDetail(
   if (encryptionVersion === 2 && ipfsData.version === 2) {
     // V2: 봉투 암호화 — DEK 언래핑 → 데이터 복호화
     plaintext = decryptDataV2(ipfsData.encrypted, ipfsData.wrappedDEK, encryptionKey);
-  } else {
+  } else if (encryptionVersion === 1 && (ipfsData.version === 1 || !ipfsData.version)) {
     // V1 Legacy: HKDF 파생키 복호화
     const encryptionSalt: string = row.encryption_salt ?? row.content_hash;
     plaintext = decryptData(ipfsData.encrypted, encryptionKey, encryptionSalt);
+  } else {
+    // 버전 불일치 — 데이터 무결성 오류
+    throw new Error(
+      `Encryption version mismatch: DB=${encryptionVersion}, IPFS=${ipfsData.version}. ` +
+      `attestationId=${attestationId}. Data integrity may be compromised.`
+    );
   }
 
   return {
