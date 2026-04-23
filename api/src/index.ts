@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { env } from "./config/env.js";
 import { runMigrations } from "./db/migrate.js";
+import { retryFailedMetadata } from "./services/metadata.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { pricingRouter } from "./routes/pricing.js";
@@ -64,6 +65,9 @@ async function start() {
   ║  Health: http://localhost:${env.PORT}/health  ║
   ╚═══════════════════════════════════════╝
   `);
+
+    // 서버 기동 후 실패한 메타데이터 재시도 (fire-and-forget)
+    retryFailedMetadata().catch(() => {});
   });
 }
 

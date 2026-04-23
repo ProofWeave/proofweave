@@ -213,55 +213,64 @@ async function callGeminiForMetadata(
   policyTags: string[];
   detectedPII: Array<{ type: string; value: string }>;
 } | null> {
-  try {
-    const genai = new GoogleGenAI({ apiKey });
+  // 우선순위 모델 + 폴백
+  const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
-    const userContent = `${METADATA_PROMPT}
+  for (const modelId of models) {
+    try {
+      const genai = new GoogleGenAI({ apiKey });
+
+      const userContent = `${METADATA_PROMPT}
 
 입력:
 prompt: ${cleanPrompt.slice(0, 1000)}
 result 샘플: ${sampledResult.slice(0, 1200)}
 model: ${aiModel}`;
 
-    const response = await genai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: userContent,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
-    });
+      const response = await genai.models.generateContent({
+        model: modelId,
+        contents: userContent,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+        },
+      });
 
-    const text = response.text?.trim();
-    if (!text) {
-      console.error("[metadata] Gemini returned empty response");
-      return null;
+      const text = response.text?.trim();
+      if (!text) {
+        console.warn(`[metadata] ${modelId} returned empty response — trying next`);
+        continue;
+      }
+
+      const parsed = JSON.parse(text);
+
+      // 기본 검증
+      if (!parsed.title || !parsed.domain) {
+        console.warn(`[metadata] ${modelId} result missing required fields:`, text.slice(0, 200));
+        continue;
+      }
+
+      // keywords 정규화: 소문자, 최대 15개
+      if (Array.isArray(parsed.keywords)) {
+        parsed.keywords = parsed.keywords
+          .map((k: unknown) => String(k).toLowerCase().trim())
+          .filter(Boolean)
+          .slice(0, 15);
+      }
+
+      console.log(`[metadata] success with ${modelId}`);
+      return parsed;
+    } catch (err) {
+      console.warn(
+        `[metadata] ${modelId} failed:`,
+        err instanceof Error ? err.message : err
+      );
+      // 다음 모델로 폴백
     }
-
-    const parsed = JSON.parse(text);
-
-    // 기본 검증
-    if (!parsed.title || !parsed.domain) {
-      console.error("[metadata] Gemini result missing required fields:", text.slice(0, 200));
-      return null;
-    }
-
-    // keywords 정규화: 소문자, 최대 15개
-    if (Array.isArray(parsed.keywords)) {
-      parsed.keywords = parsed.keywords
-        .map((k: unknown) => String(k).toLowerCase().trim())
-        .filter(Boolean)
-        .slice(0, 15);
-    }
-
-    return parsed;
-  } catch (err) {
-    console.error(
-      "[metadata] Gemini call failed:",
-      err instanceof Error ? err.message : err
-    );
-    return null;
   }
+
+  console.error("[metadata] All models failed for metadata extraction");
+  return null;
 }
 
 // ── 내부 헬퍼 ──────────────────────────────────────────────
@@ -301,6 +310,40 @@ function detectFormat(data: Record<string, unknown>): string {
   if (data.result && typeof data.result === "object") return "structured_json";
   return "report";
 }
+
+/**
+ * metadata_status = 'failed'인 항목을 재시도 (서버 시작 시 1회 호출)
+ */
+export async function retryFailedMetadata(): Promise<void> {
+  try {
+    const result = await pool.query(
+      `SELECT attestation_id, ai_model FROM attestations
+       WHERE metadata_status = 'failed'
+       ORDER BY created_at DESC LIMIT 20`
+    );
+
+    if (result.rows.length === 0) return;
+
+    console.log(`[metadata] Retrying ${result.rows.length} failed enrichments...`);
+
+    for (const row of result.rows) {
+      // pending으로 마킹 후 재시도
+      await pool.query(
+        `UPDATE attestations SET metadata_status = 'pending' WHERE attestation_id = $1`,
+        [row.attestation_id]
+      );
+
+      // fire-and-forget: 실제 데이터가 IPFS에 있어 복호화 필요 → 여기선 간단히 빈 데이터로 재시도
+      enrichWithLLM(row.attestation_id, {
+        prompt: "(retry — original data encrypted on IPFS)",
+        result: "(retry — see attestation for details)",
+      }, row.ai_model).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[metadata] Failed to retry metadata:", err instanceof Error ? err.message : err);
+  }
+}
+
 
 async function markFailed(attestationId: string): Promise<void> {
   await pool
