@@ -66,7 +66,7 @@ export function LandingPage() {
 
   const handleGetStarted = () => {
     if (user) {
-      navigate('/');
+      navigate('/dashboard');
     } else {
       navigate('/login');
     }

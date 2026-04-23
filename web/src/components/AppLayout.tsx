@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -11,10 +11,11 @@ import {
   LogOut,
   Menu,
   X,
+  Command,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/attest', icon: FileCheck, label: 'Attest' },
   { to: '/explorer', icon: Search, label: 'Explorer' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
@@ -26,16 +27,47 @@ export function AppLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
+
+  // ── Cmd+K Search Modal ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
     : '??';
 
-  const handleGlobalSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && globalSearch.trim()) {
-      navigate(`/explorer?q=${encodeURIComponent(globalSearch.trim())}`);
-      setGlobalSearch('');
+  // ── Global keyboard shortcut: Cmd+K / Ctrl+K ──
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setSearchOpen((prev) => !prev);
+    }
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleGlobalKeyDown]);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else {
+      setSearchQuery('');
+    }
+  }, [searchOpen]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/explorer?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchOpen(false);
+      setSearchQuery('');
     }
   };
 
@@ -61,7 +93,7 @@ export function AppLayout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end={to === '/dashboard'}
               className={({ isActive }) => isActive ? 'active' : ''}
               onClick={() => setSidebarOpen(false)}
             >
@@ -70,6 +102,16 @@ export function AppLayout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Cmd+K shortcut hint */}
+        <button
+          className="cmdk-sidebar-hint"
+          onClick={() => setSearchOpen(true)}
+        >
+          <Search size={14} />
+          <span>검색</span>
+          <kbd><Command size={10} />K</kbd>
+        </button>
 
         <div className="sidebar-user">
           <div className="sidebar-user-avatar" role="img" aria-label={user?.email || 'User'}>
@@ -95,21 +137,10 @@ export function AppLayout() {
       </aside>
 
       <main className="app-main" role="main">
-        {/* Global Search Bar */}
-        <div className="header-search">
-          <Search size={14} />
-          <input
-            id="global-search-input"
-            placeholder="데이터 검색... (Enter)"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            onKeyDown={handleGlobalSearch}
-          />
-        </div>
         <Outlet />
       </main>
 
-      {/* Overlay for mobile */}
+      {/* Overlay for mobile sidebar */}
       {sidebarOpen && (
         <div
           style={{
@@ -121,6 +152,52 @@ export function AppLayout() {
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
+      )}
+
+      {/* ── Cmd+K Search Modal ── */}
+      {searchOpen && (
+        <div
+          className="cmdk-overlay"
+          onClick={() => setSearchOpen(false)}
+        >
+          <div
+            className="cmdk-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <form onSubmit={handleSearchSubmit}>
+              <div className="cmdk-input-row">
+                <Search size={18} className="cmdk-input-icon" />
+                <input
+                  ref={searchInputRef}
+                  className="cmdk-input"
+                  placeholder="키워드, 해시, 주소로 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoComplete="off"
+                />
+                <kbd className="cmdk-esc">ESC</kbd>
+              </div>
+            </form>
+
+            {/* Quick navigation */}
+            <div className="cmdk-section">
+              <div className="cmdk-section-title">빠른 이동</div>
+              {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+                <button
+                  key={to}
+                  className="cmdk-item"
+                  onClick={() => {
+                    navigate(to);
+                    setSearchOpen(false);
+                  }}
+                >
+                  <Icon size={16} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
