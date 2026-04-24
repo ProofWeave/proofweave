@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Crown } from 'lucide-react';
 import { ExternalLink, FileSearch, ShoppingBag, Code, Globe, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ export interface AttestationWithMetadata {
   txHash: string;
   blockNumber: number;
   offchainRef: string;
+  priceUsdMicros?: number;
   metadata?: AttestationMetadataView;
 }
 
@@ -68,6 +70,8 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
   const meta = attestation.metadata;
   const domainColor = getDomainColor(meta?.domain);
   const hasMetadata = meta?.metadataStatus === 'ready' && meta?.title;
+  const isPaid = (attestation.priceUsdMicros ?? 0) > 0;
+  const priceUsd = isPaid ? (attestation.priceUsdMicros! / 1_000_000).toFixed(2) : null;
   const [keywordsExpanded, setKeywordsExpanded] = useState(false);
 
   const truncateHash = (hash: string) =>
@@ -95,10 +99,18 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
 
   return (
     <div
-      className="attestation-card"
+      className={`attestation-card ${isPaid ? 'attestation-card--premium' : ''}`}
       style={{ '--domain-bg': domainColor.bg, '--domain-border': domainColor.border } as React.CSSProperties}
       onClick={() => onSelect(attestation.attestationId)}
     >
+      {/* Premium ribbon for paid data */}
+      {isPaid && (
+        <div className="attestation-card__ribbon">
+          <Crown size={10} />
+          <span>PREMIUM</span>
+          {priceUsd && <span className="attestation-card__ribbon-price">${priceUsd}</span>}
+        </div>
+      )}
       {/* Header: Title + Status */}
       <div className="attestation-card__header">
         <h3 className="attestation-card__title">

@@ -446,10 +446,12 @@ export async function searchAttestations(
   const totalCount = Number(countResult.rows[0].count);
 
   // 결과 조회 (LIMIT/OFFSET) — T3: metadata, keywords, metadata_status 추가
+  // T5: pricing subquery로 가격 정보 포함
   const result = await pool.query(
     `SELECT attestation_id, content_hash, creator, ai_model, offchain_ref,
             block_number, block_timestamp, tx_hash, created_at,
-            metadata, keywords, metadata_status
+            metadata, keywords, metadata_status,
+            COALESCE((SELECT pp.price_usd_micros FROM pricing_policies pp WHERE pp.attestation_id = attestations.attestation_id), 0) AS price_usd_micros
      FROM attestations ${where}
      ORDER BY created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
@@ -468,6 +470,7 @@ export async function searchAttestations(
       blockTimestamp: row.block_timestamp,
       txHash: row.tx_hash,
       createdAt: row.created_at,
+      priceUsdMicros: Number(row.price_usd_micros) || 0,
       // T3: Tier 1 메타데이터
       metadata: row.metadata ? {
         title: row.metadata.title,
