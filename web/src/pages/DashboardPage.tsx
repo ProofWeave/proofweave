@@ -1,42 +1,11 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, ShoppingCart, DollarSign, TrendingUp, Cpu, Globe } from 'lucide-react';
+import { Cpu, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { AttestationMetadataView } from '../components/AttestationCard';
 import { DomainTimeline, type DomainConfig, type TimelineResponse } from '../components/DomainTimeline';
 
 // ── Types ────────────────────────────────────────────────────
-
-interface KpiCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  change?: string;
-  changeUp?: boolean;
-  color: 'purple' | 'cyan' | 'green' | 'amber';
-  loading?: boolean;
-}
-
-function KpiCard({ title, value, icon, change, changeUp, color, loading }: KpiCardProps) {
-  return (
-    <div className={`card kpi-card ${color}`}>
-      <div className="card-header">
-        <span className="card-title">{title}</span>
-        <div className={`kpi-icon ${color}`}>{icon}</div>
-      </div>
-      <div className="card-value">
-        {loading ? <div className="skeleton" style={{ width: 60, height: 32 }} /> : value}
-      </div>
-      {change && (
-        <div className="mt-8">
-          <span className={`kpi-change ${changeUp ? 'up' : 'down'}`}>
-            {changeUp ? '↑' : '↓'} {change}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface AttestationRow {
   attestationId: string;
@@ -84,8 +53,6 @@ const TIMELINE_DAYS = 30;
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ total: 0, myData: 0 });
-  const [myStats, setMyStats] = useState({ purchases: 0, savings: '$0' });
   const [recent, setRecent] = useState<AttestationRow[]>([]);
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,24 +60,12 @@ export function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [searchData, statsData, timelineData] = await Promise.all([
+        const [searchData, timelineData] = await Promise.all([
           api.get<SearchResponse>('/search?limit=10'),
-          api.get<{
-            totalPurchases: number;
-            totalAttestations: number;
-            estimatedSavingsUsd: string;
-          }>('/stats/me').catch(() => null),
           api.get<TimelineResponse>(`/stats/timeline?days=${TIMELINE_DAYS}`).catch(() => null),
         ]);
 
         setRecent(searchData.attestations || []);
-        setStats({ total: searchData.totalCount || searchData.count || 0, myData: statsData?.totalAttestations || 0 });
-        if (statsData) {
-          setMyStats({
-            purchases: statsData.totalPurchases,
-            savings: `$${statsData.estimatedSavingsUsd}`,
-          });
-        }
         setTimeline(timelineData);
       } catch (err) {
         console.warn('[Dashboard] fetch failed:', err);
@@ -138,38 +93,6 @@ export function DashboardPage() {
     <>
       <div className="page-header">
         <h2>Dashboard</h2>
-        <p>ProofWeave 전체 현황을 한눈에</p>
-      </div>
-
-      <div className="bento-grid">
-        <KpiCard
-          title="Total Attestations"
-          value={String(stats.total)}
-          icon={<FileCheck size={20} />}
-          color="purple"
-          loading={loading}
-        />
-        <KpiCard
-          title="My Data"
-          value={String(stats.myData)}
-          icon={<TrendingUp size={20} />}
-          color="cyan"
-          loading={loading}
-        />
-        <KpiCard
-          title="Purchases"
-          value={String(myStats.purchases)}
-          icon={<ShoppingCart size={20} />}
-          color="green"
-          loading={loading}
-        />
-        <KpiCard
-          title="Cost Saved"
-          value={myStats.savings}
-          icon={<DollarSign size={20} />}
-          color="amber"
-          loading={loading}
-        />
       </div>
 
       {/* Attestation Timeline (30 days, stacked by domain) */}
@@ -190,12 +113,6 @@ export function DashboardPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title">최근 Attestations</span>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => navigate('/explorer')}
-          >
-            전체 보기
-          </button>
         </div>
         <div className="table-wrapper">
           <table>
@@ -271,6 +188,23 @@ export function DashboardPage() {
             </tbody>
           </table>
         </div>
+        {recent.length > 0 && (
+          <div
+            onClick={() => navigate('/explorer')}
+            style={{
+              textAlign: 'center',
+              padding: '12px 0 8px',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-primary)'; }}
+            onMouseLeave={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-muted)'; }}
+          >
+            더보기 →
+          </div>
+        )}
       </div>
     </>
   );

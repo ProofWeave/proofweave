@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, FileSearch, ShoppingBag, Code, Globe, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, FileSearch, Code, Globe, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────
 

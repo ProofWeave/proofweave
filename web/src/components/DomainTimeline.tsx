@@ -213,7 +213,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, minorDoms, legendMajorDoms, legendMinorDoms, domTotals };
   }, [data, dconfig, days, hiddenDomains]);
 
-  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, legendMajorDoms, legendMinorDoms, domTotals } = computed;
+  const { allDates, domList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, legendMajorDoms, legendMinorDoms, domTotals } = computed;
   const [legendEtcHover, setLegendEtcHover] = useState(false);
   const isEmpty = dailyData.every((s) => s.total === 0);
 
@@ -529,8 +529,8 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
           style={{
             position: 'absolute',
             left: `${(Math.min(Math.max(tooltip.x, 90), W - 90) / W) * 100}%`,
-            top: 0,
-            transform: 'translate(-50%, -100%)',
+            top: 30,
+            transform: 'translateX(-50%)',
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 8,
