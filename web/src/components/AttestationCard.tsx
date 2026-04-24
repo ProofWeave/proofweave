@@ -101,10 +101,6 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
       style={{ '--domain-bg': domainColor.bg, '--domain-border': domainColor.border } as React.CSSProperties}
       onClick={() => onSelect(attestation.attestationId)}
     >
-      {/* 유료 데이터 라벨 */}
-      {isPaid && (
-        <div className="attestation-card__ribbon">유료</div>
-      )}
       {/* Header: Title + Status */}
       <div className="attestation-card__header">
         <h3 className="attestation-card__title">

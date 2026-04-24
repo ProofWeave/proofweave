@@ -69,6 +69,7 @@ export function ExplorerPage() {
   // Dynamic facets
   const [facets, setFacets] = useState<Facets>({ domains: [], problemTypes: [] });
   const [filterModal, setFilterModal] = useState<'domain' | 'problemType' | null>(null);
+  const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
 
   // 구매 + facets 로드
   useEffect(() => {
@@ -191,7 +192,16 @@ export function ExplorerPage() {
     }
   };
 
-  const hasActiveFilters = domains.length > 0 || problemTypes.length > 0;
+  const hasActiveFilters = domains.length > 0 || problemTypes.length > 0 || priceFilter !== 'all';
+
+  // 가격 필터 적용 (클라이언트 사이드 즉시 필터링)
+  const filteredResults = priceFilter === 'all'
+    ? results
+    : results.filter((a) =>
+        priceFilter === 'free'
+          ? (a.priceUsdMicros ?? 0) === 0
+          : (a.priceUsdMicros ?? 0) > 0
+      );
 
   return (
     <>
@@ -250,6 +260,22 @@ export function ExplorerPage() {
             <ChevronDown size={13} />
           </button>
 
+          {/* Price filter chips */}
+          <div className="price-filter">
+            <button
+              className={`price-filter__chip ${priceFilter === 'all' ? 'price-filter__chip--active' : ''}`}
+              onClick={() => setPriceFilter('all')}
+            >전체</button>
+            <button
+              className={`price-filter__chip ${priceFilter === 'free' ? 'price-filter__chip--active' : ''}`}
+              onClick={() => setPriceFilter('free')}
+            >무료</button>
+            <button
+              className={`price-filter__chip price-filter__chip--paid ${priceFilter === 'paid' ? 'price-filter__chip--active' : ''}`}
+              onClick={() => setPriceFilter('paid')}
+            >유료</button>
+          </div>
+
           {/* Active filter badges */}
           {hasActiveFilters && (
             <div className="filter-bar__tags">
@@ -300,9 +326,9 @@ export function ExplorerPage() {
 
       {/* Results */}
       {viewMode === 'card' ? (
-        results.length > 0 ? (
+        filteredResults.length > 0 ? (
           <div className="attestation-grid">
-            {results.map((att) => (
+            {filteredResults.map((att) => (
               <AttestationCard
                 key={att.attestationId}
                 attestation={att}
@@ -338,8 +364,8 @@ export function ExplorerPage() {
                 </tr>
               </thead>
               <tbody>
-                {results.length > 0 ? (
-                  results.map((att) => {
+                {filteredResults.length > 0 ? (
+                  filteredResults.map((att) => {
                     const isPurchased = purchasedIds.has(att.attestationId);
                     const meta = att.metadata;
                     const hasTitle = meta?.metadataStatus === 'ready' && meta?.title;
