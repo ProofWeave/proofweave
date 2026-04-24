@@ -3,6 +3,7 @@ import { FileCheck, ShoppingCart, DollarSign, TrendingUp, Cpu, Globe } from 'luc
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { AttestationMetadataView } from '../components/AttestationCard';
+import { DomainTimeline, type DomainConfig, type TimelineResponse } from '../components/DomainTimeline';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -55,13 +56,29 @@ interface SearchResponse {
 
 // ── Domain color/label map ──────────────────────────────────
 
-const DOMAIN_CONFIG: Record<string, { label: string; color: string }> = {
+const DOMAIN_CONFIG: DomainConfig = {
   defi:            { label: 'DeFi',           color: 'var(--accent-purple)' },
   smart_contract:  { label: 'Smart Contract', color: 'var(--accent-cyan)' },
   security:        { label: 'Security',       color: 'var(--accent-red)' },
   legal:           { label: 'Legal',          color: 'var(--accent-amber)' },
   data_analysis:   { label: 'Data Analysis',  color: 'var(--accent-green)' },
+  infrastructure:  { label: 'Infra',          color: '#7C6F64' },
+  blockchain:      { label: 'Blockchain',     color: '#6A5ACD' },
+  cryptocurrency:  { label: 'Crypto',         color: '#CD853F' },
+  nft:             { label: 'NFT',            color: '#DA70D6' },
+  dao:             { label: 'DAO',            color: '#20B2AA' },
+  ai_ml:           { label: 'AI/ML',          color: '#4682B4' },
+  data_science:    { label: 'Data Sci.',      color: '#3CB371' },
+  web3:            { label: 'Web3',           color: '#9370DB' },
+  economics:       { label: 'Economics',      color: '#D2691E' },
+  education:       { label: 'Education',      color: '#5F9EA0' },
+  health:          { label: 'Health',         color: '#E9967A' },
+  science:         { label: 'Science',        color: '#8FBC8F' },
+  technology:      { label: 'Technology',     color: '#778899' },
+  general:         { label: 'General',        color: '#A0938F' },
 };
+
+const TIMELINE_DAYS = 30;
 
 // ── Component ───────────────────────────────────────────────
 
@@ -70,18 +87,20 @@ export function DashboardPage() {
   const [stats, setStats] = useState({ total: 0, myData: 0 });
   const [myStats, setMyStats] = useState({ purchases: 0, savings: '$0' });
   const [recent, setRecent] = useState<AttestationRow[]>([]);
+  const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [searchData, statsData] = await Promise.all([
+        const [searchData, statsData, timelineData] = await Promise.all([
           api.get<SearchResponse>('/search?limit=10'),
           api.get<{
             totalPurchases: number;
             totalAttestations: number;
             estimatedSavingsUsd: string;
           }>('/stats/me').catch(() => null),
+          api.get<TimelineResponse>(`/stats/timeline?days=${TIMELINE_DAYS}`).catch(() => null),
         ]);
 
         setRecent(searchData.attestations || []);
@@ -92,6 +111,7 @@ export function DashboardPage() {
             savings: `$${statsData.estimatedSavingsUsd}`,
           });
         }
+        setTimeline(timelineData);
       } catch (err) {
         console.warn('[Dashboard] fetch failed:', err);
       } finally {
@@ -99,14 +119,6 @@ export function DashboardPage() {
       }
     })();
   }, []);
-
-  // 도메인 분포 계산
-  const domainCounts = recent.reduce<Record<string, number>>((acc, att) => {
-    const domain = att.metadata?.domain || 'unknown';
-    acc[domain] = (acc[domain] || 0) + 1;
-    return acc;
-  }, {});
-  const maxDomainCount = Math.max(...Object.values(domainCounts), 1);
 
   const truncateHash = (hash: string) =>
     hash.length > 14 ? `${hash.slice(0, 8)}…${hash.slice(-6)}` : hash;
@@ -160,34 +172,19 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Domain Distribution */}
-      {Object.keys(domainCounts).length > 0 && (
-        <div className="card mb-24">
-          <div className="card-header">
-            <span className="card-title">도메인 분포</span>
-          </div>
-          <div className="domain-bar">
-            {Object.entries(domainCounts)
-              .sort(([, a], [, b]) => b - a)
-              .map(([domain, count]) => {
-                const config = DOMAIN_CONFIG[domain] || { label: domain, color: 'var(--text-muted)' };
-                const widthPct = Math.max((count / maxDomainCount) * 100, 4);
-                return (
-                  <div key={domain} className="domain-bar__row">
-                    <span className="domain-bar__label">{config.label}</span>
-                    <div className="domain-bar__track">
-                      <div
-                        className="domain-bar__fill"
-                        style={{ width: `${widthPct}%`, background: config.color }}
-                      />
-                    </div>
-                    <span className="domain-bar__count">{count}</span>
-                  </div>
-                );
-              })}
-          </div>
+      {/* Attestation Timeline (30 days, stacked by domain) */}
+      <div className="card mb-24">
+        <div className="card-header">
+          <span className="card-title">Attestation 추이 ({TIMELINE_DAYS}일)</span>
         </div>
-      )}
+        {loading && !timeline ? (
+          <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="skeleton" style={{ width: '100%', height: 180 }} />
+          </div>
+        ) : (
+          <DomainTimeline data={timeline} dconfig={DOMAIN_CONFIG} days={TIMELINE_DAYS} />
+        )}
+      </div>
 
       {/* Recent Attestations — with metadata */}
       <div className="card">
