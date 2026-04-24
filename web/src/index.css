@@ -2826,15 +2826,12 @@ tr:hover td {
    ============================================================ */
 
 .attestation-card--premium {
-  border-left: 3px solid #C8963E;
-  border-color: rgba(180, 130, 60, 0.22);
-  border-left-color: #C8963E;
+  border: 1.5px solid #C8963E;
 }
 
 .attestation-card--premium:hover {
-  border-color: rgba(180, 130, 60, 0.35);
-  border-left-color: #B8864A;
-  box-shadow: var(--shadow-md), 0 0 0 1px rgba(180, 130, 60, 0.08);
+  border-color: #B8864A;
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Price Filter Chips ────────────────────────────────────── */
