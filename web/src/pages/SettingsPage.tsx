@@ -5,6 +5,7 @@ import { parseUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { MyDataSection } from '../components/MyDataSection';
 import { USDC_ADDRESS, USDC_DECIMALS, ERC20_TRANSFER_ABI } from '../config/wagmi';
 
 interface SmartWalletData {
@@ -397,6 +398,9 @@ export function SettingsPage() {
           </p>
         )}
       </div>
+
+      {/* ─── 내 데이터 ─────────────────────────── */}
+      <MyDataSection />
 
       {/* ─── 구매 내역 ─────────────────────────── */}
       <div className="card">

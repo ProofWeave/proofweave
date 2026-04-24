@@ -47,6 +47,33 @@ pricingRouter.post("/pricing", authenticate, async (req, res) => {
     return;
   }
 
+  // T5: 1시간 쿨다운 검증 — 기존 가격이 있고, 최근 1시간 이내 수정됐으면 차단
+  const existingPrice = await getPrice(attestationId);
+  if (existingPrice) {
+    const { pool } = await import("../services/db.js");
+    const cooldownResult = await pool.query(
+      `SELECT updated_at FROM pricing_policies WHERE attestation_id = $1`,
+      [attestationId]
+    );
+    if (cooldownResult.rows.length > 0 && cooldownResult.rows[0].updated_at) {
+      const updatedAt = new Date(cooldownResult.rows[0].updated_at);
+      const now = new Date();
+      const diffMs = now.getTime() - updatedAt.getTime();
+      const cooldownMs = 60 * 60 * 1000; // 1시간
+      if (diffMs < cooldownMs) {
+        const remainingMs = cooldownMs - diffMs;
+        const remainingMin = Math.ceil(remainingMs / 60_000);
+        res.status(429).json({
+          error: "Price change cooldown active",
+          message: `가격 변경 후 1시간 동안 재변경이 불가합니다. 약 ${remainingMin}분 후 다시 시도하세요.`,
+          cooldownRemainingMs: remainingMs,
+          cooldownEndsAt: new Date(updatedAt.getTime() + cooldownMs).toISOString(),
+        });
+        return;
+      }
+    }
+  }
+
   const policy = await setPrice(attestationId, creator, priceUsdMicros);
 
   if (!policy) {

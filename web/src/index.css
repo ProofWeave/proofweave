@@ -2835,49 +2835,20 @@ tr:hover td {
   box-shadow: var(--shadow-md), 0 0 12px rgba(180, 130, 60, 0.1);
 }
 
-/* ── Ribbon ──────────────────────────────────────────────────── */
+/* ── Ribbon (유료 라벨) ──────────────────────────────────────── */
 .attestation-card__ribbon {
   position: absolute;
-  top: -1px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px 6px;
-  background: linear-gradient(135deg, #C8963E 0%, #A67C30 50%, #8B6914 100%);
-  color: white;
+  top: -10px;
+  right: 14px;
+  padding: 2px 10px 3px;
+  background: transparent;
+  color: #A67C30;
   font-family: var(--font-sans);
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  box-shadow: 0 2px 8px rgba(180, 130, 60, 0.3);
+  letter-spacing: 0.06em;
   z-index: 2;
-  transform: translateY(-1px);
-  transition: transform var(--transition-fast);
-}
-
-.attestation-card:hover .attestation-card__ribbon {
-  transform: translateY(0);
-}
-
-.attestation-card__ribbon svg {
-  flex-shrink: 0;
-}
-
-.attestation-card__ribbon-price {
-  font-weight: 700;
-  font-size: 0.62rem;
-  opacity: 0.9;
-  padding-left: 2px;
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-  margin-left: 2px;
-  padding-left: 4px;
-}
-
-/* ── Free badge (optional subtle indicator) ─────────────────── */
-.attestation-card:not(.attestation-card--premium) .attestation-card__action {
-  /* default style kept */
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(180, 130, 60, 0.15);
 }
 
