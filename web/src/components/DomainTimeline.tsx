@@ -41,6 +41,7 @@ const IW = W - PAD.left - PAD.right;
 const IH = H - PAD.top - PAD.bottom;
 
 const FALLBACK_CFG: DomainConfigEntry = { label: 'Unknown', color: 'var(--text-muted)' };
+const ETC_CFG: DomainConfigEntry = { label: 'etc.', color: '#B0A8A4' };
 
 /** Monotone cubic interpolation — prevents overshoot/undershoot */
 function smoothPath(pts: Array<{ x: number; y: number }>): string {
@@ -111,13 +112,34 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     // Ensure configured domains are present in legend even if count is 0.
     for (const dom of Object.keys(dconfig)) domainSet.add(dom);
     // configured domains만 포함 (unknown 등 미등록 도메인 제외), 숨겨진 도메인 필터링
-    const domList = [...domainSet].filter((dom) => dom in dconfig && !hiddenDomains.has(dom));
+    const rawDomList = [...domainSet].filter((dom) => dom in dconfig && !hiddenDomains.has(dom));
     const allDomList = [...domainSet].filter((dom) => dom in dconfig);
 
+    // 각 도메인의 하루 최대 건수 계산 → 2건 이하면 etc로 합침
+    const maxPerDom: Record<string, number> = {};
+    for (const dom of rawDomList) {
+      maxPerDom[dom] = 0;
+      for (const date of allDates) {
+        const v = buckets[date]?.[dom] ?? 0;
+        if (v > maxPerDom[dom]) maxPerDom[dom] = v;
+      }
+    }
+    const ETC_KEY = '_etc';
+    const majorDoms = rawDomList.filter((d) => maxPerDom[d] > 2);
+    const minorDoms = rawDomList.filter((d) => maxPerDom[d] <= 2);
+    const hasEtc = minorDoms.length > 0;
+    const domList = hasEtc ? [...majorDoms, ETC_KEY] : majorDoms;
+
+    // 차트용 데이터 (etc 합산)
     const dailyData = allDates.map((date) => {
       let y0 = 0;
       const layers: TooltipLayer[] = domList.map((dom) => {
-        const v = buckets[date]?.[dom] ?? 0;
+        let v: number;
+        if (dom === ETC_KEY) {
+          v = minorDoms.reduce((sum, d) => sum + (buckets[date]?.[d] ?? 0), 0);
+        } else {
+          v = buckets[date]?.[dom] ?? 0;
+        }
         const layer = { dom, y0, y1: y0 + v, value: v };
         y0 += v;
         return layer;
@@ -130,7 +152,11 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     domList.forEach((d) => { cumul[d] = 0; });
     const cumulData = allDates.map((date) => {
       domList.forEach((dom) => {
-        cumul[dom] += buckets[date]?.[dom] ?? 0;
+        if (dom === ETC_KEY) {
+          cumul[dom] += minorDoms.reduce((sum, d) => sum + (buckets[date]?.[d] ?? 0), 0);
+        } else {
+          cumul[dom] += buckets[date]?.[dom] ?? 0;
+        }
       });
       let y0 = 0;
       const layers: TooltipLayer[] = domList.map((dom) => {
@@ -143,10 +169,34 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     });
     const maxCumul = Math.max(...cumulData.map((s) => s.total), 1);
 
-    return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul };
+    // tooltip용: 원본 도메인 유지 (etc를 개별 도메인으로 펼침)
+    const tooltipDailyData = allDates.map((date) => {
+      let y0 = 0;
+      const layers: TooltipLayer[] = rawDomList.map((dom) => {
+        const v = buckets[date]?.[dom] ?? 0;
+        const layer = { dom, y0, y1: y0 + v, value: v };
+        y0 += v;
+        return layer;
+      });
+      return { date, layers, total: y0 };
+    });
+
+    const tooltipCumulData = allDates.map((date, idx) => {
+      const layers: TooltipLayer[] = rawDomList.map((dom) => {
+        let cumV = 0;
+        for (let k = 0; k <= idx; k++) {
+          cumV += buckets[allDates[k]]?.[dom] ?? 0;
+        }
+        return { dom, y0: 0, y1: cumV, value: cumV };
+      });
+      const total = layers.reduce((s, l) => s + l.value, 0);
+      return { date, layers, total };
+    });
+
+    return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, minorDoms };
   }, [data, dconfig, days, hiddenDomains]);
 
-  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul } = computed;
+  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData } = computed;
   const isEmpty = dailyData.every((s) => s.total === 0);
 
   const xPos = (i: number) => PAD.left + ((i + 0.5) / allDates.length) * IW;
@@ -161,7 +211,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     const botRev = [...botPts].reverse();
     const botLine = smoothPath(botRev);
     const area = topLine + ' L' + botRev[0].x + ',' + botRev[0].y + ' ' + botLine.slice(1) + ' Z';
-    const cfg = dconfig[dom] ?? FALLBACK_CFG;
+    const cfg = dom === '_etc' ? ETC_CFG : (dconfig[dom] ?? FALLBACK_CFG);
     return { dom, area, topPts, cfg };
   });
 
@@ -178,7 +228,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
       >
         <defs>
           {domList.map((dom) => {
-            const cfg = dconfig[dom] ?? FALLBACK_CFG;
+            const cfg = dom === '_etc' ? ETC_CFG : (dconfig[dom] ?? FALLBACK_CFG);
             return (
               <linearGradient key={dom} id={`tl-grad-${dom}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={cfg.color} stopOpacity={0.12} />
@@ -247,7 +297,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
         {dailyData.map((s, i) => (
           <g key={s.date}>
             {s.layers.filter((l) => l.value > 0).map((l) => {
-              const cfg = dconfig[l.dom] ?? FALLBACK_CFG;
+              const cfg = l.dom === '_etc' ? ETC_CFG : (dconfig[l.dom] ?? FALLBACK_CFG);
               return (
                 <rect
                   key={l.dom}
@@ -278,8 +328,8 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
                 x: xPos(i),
                 totalDaily: s.total,
                 totalCumul: cumulData[i].total,
-                daily: s.layers,
-                cumul: cumulData[i].layers,
+                daily: tooltipDailyData[i].layers,
+                cumul: tooltipCumulData[i].layers,
               })
             }
           />
