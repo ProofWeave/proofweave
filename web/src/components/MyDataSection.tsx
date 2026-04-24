@@ -126,8 +126,8 @@ export function MyDataSection() {
               {data.map((att) => (
                 <tr key={att.attestationId}>
                   <td title={att.attestationId}>
-                    <div style={{ maxWidth: 180 }}>
-                      <div className="text-sm" style={{ fontWeight: 500 }}>
+                    <div>
+                      <div className="text-sm" style={{ fontWeight: 500, wordBreak: 'break-word' }}>
                         {att.metadata?.title || truncate(att.contentHash)}
                       </div>
                       {att.metadata?.domain && (

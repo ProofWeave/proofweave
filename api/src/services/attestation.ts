@@ -398,14 +398,15 @@ export async function searchAttestations(
       conditions.push(`LOWER(creator) = LOWER($${paramIdx++})`);
       params.push(q);
     } else {
-      // 그 외: ai_model + title ILIKE 부분 일치 + keywords 정확 일치 (T3 강화)
-      // keywords @> 연산자는 정확 일치이므로 별도 파라미터 사용
+      // 텍스트 검색: title, abstract, ai_model ILIKE + keywords 정확 일치 + keywords 텍스트 ILIKE
       const ilikeParam = paramIdx++;
       const keywordParam = paramIdx++;
       conditions.push(`(
         ai_model ILIKE $${ilikeParam}
         OR metadata->>'title' ILIKE $${ilikeParam}
+        OR metadata->>'abstract' ILIKE $${ilikeParam}
         OR keywords @> ARRAY[$${keywordParam}]::TEXT[]
+        OR array_to_string(keywords, ' ') ILIKE $${ilikeParam}
       )`);
       params.push(`%${q.toLowerCase()}%`);
       params.push(q.toLowerCase());

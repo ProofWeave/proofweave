@@ -155,8 +155,11 @@ export function SettingsPage() {
         <p>계정 및 API 설정 관리</p>
       </div>
 
+      {/* ═══ Row 1: 계정정보 + Smart Wallet + 외부 지갑 ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
+
       {/* 계정 정보 */}
-      <div className="card mb-24">
+      <div className="card">
         <div className="card-header">
           <span className="card-title">계정 정보</span>
         </div>
@@ -171,7 +174,7 @@ export function SettingsPage() {
       </div>
 
       {/* Smart Wallet */}
-      <div className="card mb-24">
+      <div className="card">
         <div className="card-header">
           <span className="card-title">
             <Wallet size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
@@ -195,7 +198,6 @@ export function SettingsPage() {
           </div>
         ) : smartWallet ? (
           <>
-            {/* 주소 */}
             <div className="form-group">
               <label className="label">주소</label>
               <div className="flex items-center gap-8">
@@ -212,7 +214,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* 잔고 */}
             <div className="form-group">
               <label className="label">USDC 잔고</label>
               <span
@@ -222,10 +223,6 @@ export function SettingsPage() {
                 ${formatUsd(smartWallet.balanceUsdMicros)} USDC
               </span>
             </div>
-
-            <p className="text-xs text-muted">
-              이 지갑에 USDC가 있으면 데이터 구매 시 자동 결제됩니다.
-            </p>
           </>
         ) : (
           <div>
@@ -247,114 +244,81 @@ export function SettingsPage() {
         )}
       </div>
 
-      {/* 외부 지갑 연결 + 충전 (항상 표시) */}
-      <div className="card mb-24">
+      {/* 외부 지갑 연결 + 충전 */}
+      <div className="card">
         <div className="card-header">
           <span className="card-title">
             <Link2 size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-            외부 지갑 연결 / USDC 충전
+            외부 지갑 / 충전
           </span>
         </div>
 
         {!isConnected ? (
           <div>
             <p className="text-sm text-muted mb-12">
-              외부 지갑(Rabby, MetaMask 등)을 연결하면 Smart Wallet으로 USDC를 직접 충전할 수 있습니다.
+              MetaMask 등 외부 지갑을 연결하여 USDC를 충전하세요.
             </p>
-            <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
+            <div className="flex gap-8 flex-wrap">
               {connectors.map((connector) => (
                 <button
                   key={connector.uid}
                   className="btn btn-primary"
                   onClick={() => connect({ connector })}
-                  style={{ minWidth: 160 }}
                 >
-                  <Link2 size={14} />
-                  {connector.name} 연결
+                  <Wallet size={14} /> {connector.name} 연결
                 </button>
               ))}
             </div>
           </div>
         ) : (
           <div>
-            {/* 연결된 지갑 */}
             <div className="form-group">
-              <label className="label">연결된 지갑</label>
+              <label className="label">연결된 주소</label>
               <div className="flex items-center gap-8">
-                <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
-                  ✓ 연결됨
-                </span>
-                <code className="font-mono" style={{ fontSize: '0.75rem' }}>
-                  {externalAddress}
-                </code>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => disconnect()}
-                  style={{ padding: '2px 8px' }}
-                >
+                <input
+                  className="input font-mono"
+                  value={externalAddress || ''}
+                  readOnly
+                  style={{ flex: 1, fontSize: '0.8rem' }}
+                />
+                <button className="btn btn-secondary btn-sm" onClick={() => disconnect()}>
                   <Unlink size={12} /> 해제
                 </button>
               </div>
             </div>
 
-            {/* 충전 UI */}
             {smartWallet ? (
               <div className="form-group">
-                <label className="label">Smart Wallet 충전</label>
+                <label className="label">USDC 충전</label>
                 <div className="flex items-center gap-8">
                   <input
                     className="input"
                     type="number"
-                    step="0.01"
-                    min="0.01"
+                    min="1"
+                    step="1"
                     value={chargeAmount}
                     onChange={(e) => setChargeAmount(e.target.value)}
-                    placeholder="USDC 금액"
-                    style={{ width: 140 }}
+                    style={{ width: 100 }}
+                    placeholder="USDC"
                   />
-                  <span className="text-sm text-muted">USDC</span>
                   <button
                     className="btn btn-primary"
+                    disabled={isSending || chargeStatus === 'confirming'}
                     onClick={handleCharge}
-                    disabled={isSending || isConfirming}
                   >
                     {isSending ? (
-                      <><Loader size={14} className="spin" /> 서명 중...</>
-                    ) : isConfirming ? (
+                      <><Loader size={14} className="spin" /> 전송 중...</>
+                    ) : chargeStatus === 'confirming' ? (
                       <><Loader size={14} className="spin" /> 확인 중...</>
                     ) : (
-                      <><ArrowUpRight size={14} /> 충전하기</>
+                      <><ArrowUpRight size={14} /> 충전</>
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-muted mt-4">
-                  연결된 지갑에서 Smart Wallet({smartWallet.address.slice(0, 8)}...)으로 USDC를 전송합니다.
-                </p>
-
-                {/* 상태 메시지 */}
-                {chargeStatus === 'confirming' && (
-                  <p className="text-xs text-muted mt-8">⏳ 트랜잭션 확인 중...</p>
-                )}
                 {chargeStatus === 'done' && (
                   <p className="text-xs mt-8" style={{ color: 'var(--success)' }}>
                     ✅ 충전 완료! 잔고가 업데이트되었습니다.
                   </p>
-                )}
-                {chargeStatus === 'error' && (
-                  <p className="text-xs mt-8" style={{ color: 'var(--error)' }}>
-                    ❌ 충전 실패. 지갑 잔고를 확인해주세요.
-                  </p>
-                )}
-                {txHash && (
-                  <a
-                    href={`https://sepolia.basescan.org/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs"
-                    style={{ color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
-                  >
-                    TX: {txHash.slice(0, 14)}... ↗
-                  </a>
                 )}
               </div>
             ) : (
@@ -366,8 +330,73 @@ export function SettingsPage() {
         )}
       </div>
 
-      {/* API Key */}
-      <div className="card mb-24">
+      </div>{/* end Row 1 */}
+
+      {/* ═══ Row 2: MyData (2/3) + 구매내역 (1/3) ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
+
+      {/* 내 데이터 */}
+      <MyDataSection />
+
+      {/* 구매 내역 */}
+      <div className="card">
+        <div className="flex items-center gap-8 mb-16">
+          <ShoppingBag size={16} style={{ color: 'var(--accent)' }} />
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>구매 내역</h3>
+        </div>
+
+        {purchasesLoading ? (
+          <div className="flex items-center gap-8" style={{ padding: 20 }}>
+            <Loader size={16} className="spin" />
+            <span className="text-muted text-sm">불러오는 중...</span>
+          </div>
+        ) : purchases.length === 0 ? (
+          <p className="text-secondary text-sm">기록이 없습니다.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Attestation</th>
+                  <th>금액</th>
+                  <th>일자</th>
+                  <th>TX</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchases.map((p) => (
+                  <tr key={p.receiptId}>
+                    <td className="mono text-xs">{p.attestationId.slice(0, 6)}...</td>
+                    <td>${p.amountUsd}</td>
+                    <td className="text-xs">
+                      {new Date(p.createdAt).toLocaleDateString('ko-KR', {
+                        month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </td>
+                    <td>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${p.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ textDecoration: 'none', padding: '2px 8px' }}
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      </div>{/* end Row 2 */}
+
+      {/* ═══ Row 3: API Key (하단) ═══ */}
+      <div className="card">
         <div className="card-header">
           <span className="card-title">
             <Key size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
@@ -396,72 +425,6 @@ export function SettingsPage() {
           <p className="text-secondary text-sm">
             API Key가 없습니다. /auth/register 연동 후 자동 발급됩니다.
           </p>
-        )}
-      </div>
-
-      {/* ─── 내 데이터 ─────────────────────────── */}
-      <MyDataSection />
-
-      {/* ─── 구매 내역 ─────────────────────────── */}
-      <div className="card">
-        <div className="flex items-center gap-8 mb-16">
-          <ShoppingBag size={18} style={{ color: 'var(--accent)' }} />
-          <h3 style={{ margin: 0 }}>구매 내역</h3>
-        </div>
-
-        {purchasesLoading ? (
-          <div className="flex items-center gap-8" style={{ padding: 20 }}>
-            <Loader size={16} className="spin" />
-            <span className="text-muted text-sm">불러오는 중...</span>
-          </div>
-        ) : purchases.length === 0 ? (
-          <p className="text-secondary text-sm" style={{ padding: '20px 0' }}>
-            아직 구매한 데이터가 없습니다.
-          </p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Attestation</th>
-                  <th>금액</th>
-                  <th>결제일</th>
-                  <th>TX</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.receiptId}>
-                    <td className="mono text-xs" title={p.attestationId}>
-                      {p.attestationId.slice(0, 8)}...{p.attestationId.slice(-6)}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: 600 }}>${p.amountUsd}</span>
-                      <span className="text-xs text-muted" style={{ marginLeft: 4 }}>USDC</span>
-                    </td>
-                    <td className="text-xs">
-                      {new Date(p.createdAt).toLocaleDateString('ko-KR', {
-                        month: 'short', day: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </td>
-                    <td>
-                      <a
-                        href={`https://sepolia.basescan.org/tx/${p.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary btn-sm"
-                        style={{ textDecoration: 'none', padding: '2px 8px' }}
-                      >
-                        <ExternalLink size={12} />
-                        Tx
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         )}
       </div>
     </>
