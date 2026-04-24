@@ -2839,17 +2839,23 @@ tr:hover td {
 /* ── Ribbon (유료 라벨) ──────────────────────────────────────── */
 .attestation-card__ribbon {
   position: absolute;
-  top: -11px;
-  right: 12px;
-  padding: 2px 0;
+  top: -9px;
+  right: -6px;
+  padding: 0;
   background: transparent;
-  color: #A67C30;
+  color: #B8864A;
   font-family: var(--font-sans);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   z-index: 3;
   pointer-events: none;
   line-height: 1;
+  transform: rotate(-12deg);
+  opacity: 0.72;
+  transition: opacity var(--transition-fast);
 }
 
+.attestation-card--premium:hover .attestation-card__ribbon {
+  opacity: 0.92;
+}
