@@ -22,3 +22,11 @@ dist/
 .vercel
 .pids/
 .claude/
+
+# Agent artifacts
+implementation_plan.md
+task.md
+
+# Presentations
+*.pptx
+*.keynote.pptx
