@@ -11,11 +11,27 @@ export const pricingRouter = Router();
  */
 pricingRouter.post("/pricing", authenticate, async (req, res) => {
   const { attestationId, priceUsdMicros } = req.body;
-  const creator = req.apiKeyOwner;
+  const apiKeyOwner = req.apiKeyOwner;
 
-  if (!creator) {
+  if (!apiKeyOwner) {
     res.status(401).json({ error: "Authentication required" });
     return;
+  }
+
+  // creator 결정: attest와 동일 로직 — 웹 사용자는 Smart Wallet 주소 사용
+  const isWebUser = apiKeyOwner.startsWith("web:");
+  let creator: string;
+  if (isWebUser) {
+    const smartWallet = req.smartWalletAddress;
+    if (!smartWallet) {
+      res.status(403).json({
+        error: "No smart wallet associated with this account",
+      });
+      return;
+    }
+    creator = smartWallet;
+  } else {
+    creator = apiKeyOwner;
   }
 
   if (!attestationId || priceUsdMicros === undefined) {
