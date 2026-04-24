@@ -136,17 +136,16 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     const hasEtc = minorDoms.length > 0;
     const domList = hasEtc ? [...majorDoms, ETC_KEY] : majorDoms;
 
-    // 레전드용: 전체 기간 총 건수 대비 10% 미만 → legendEtc로 합침
-    const totalAll = rawDomList.reduce((sum, dom) =>
-      sum + allDates.reduce((s, date) => s + (buckets[date]?.[dom] ?? 0), 0), 0
-    );
-    const legendThreshold = Math.floor(totalAll * 0.10);
+    // 레전드용: 전체 도메인 기준 총 건수 대비 10% 미만 → legendEtc로 합침
+    // hiddenDomains와 무관하게 allDomList 기준으로 고정 계산
     const domTotals: Record<string, number> = {};
-    for (const dom of rawDomList) {
+    for (const dom of allDomList) {
       domTotals[dom] = allDates.reduce((s, date) => s + (buckets[date]?.[dom] ?? 0), 0);
     }
-    const legendMajorDoms = allDomList.filter((d) => (domTotals[d] ?? 0) >= legendThreshold);
-    const legendMinorDoms = allDomList.filter((d) => (domTotals[d] ?? 0) < legendThreshold && (domTotals[d] ?? 0) > 0);
+    const totalAll = allDomList.reduce((sum, dom) => sum + domTotals[dom], 0);
+    const legendThreshold = Math.floor(totalAll * 0.10);
+    const legendMajorDoms = allDomList.filter((d) => domTotals[d] >= legendThreshold);
+    const legendMinorDoms = allDomList.filter((d) => domTotals[d] < legendThreshold && domTotals[d] > 0);
 
     // 차트용 데이터 (etc 합산)
     const dailyData = allDates.map((date) => {
