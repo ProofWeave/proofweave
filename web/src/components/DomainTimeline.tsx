@@ -42,15 +42,33 @@ const IH = H - PAD.top - PAD.bottom;
 
 const FALLBACK_CFG: DomainConfigEntry = { label: 'Unknown', color: 'var(--text-muted)' };
 
+/** Monotone cubic interpolation — prevents overshoot/undershoot */
 function smoothPath(pts: Array<{ x: number; y: number }>): string {
   if (pts.length < 2) return '';
+  const n = pts.length;
+  // compute slopes
+  const dxs: number[] = [];
+  const dys: number[] = [];
+  const ms: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    dxs.push(pts[i + 1].x - pts[i].x);
+    dys.push(pts[i + 1].y - pts[i].y);
+    ms.push(dys[i] / dxs[i]);
+  }
+  const ds: number[] = [ms[0]];
+  for (let i = 1; i < n - 1; i++) {
+    if (ms[i - 1] * ms[i] <= 0) {
+      ds.push(0);
+    } else {
+      ds.push((ms[i - 1] + ms[i]) / 2);
+    }
+  }
+  ds.push(ms[n - 2]);
+  // build path
   let d = `M${pts[0].x},${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(i - 1, 0)];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[Math.min(i + 2, pts.length - 1)];
-    d += ` C${p1.x + (p2.x - p0.x) / 6},${p1.y + (p2.y - p0.y) / 6} ${p2.x - (p3.x - p1.x) / 6},${p2.y - (p3.y - p1.y) / 6} ${p2.x},${p2.y}`;
+  for (let i = 0; i < n - 1; i++) {
+    const dx3 = dxs[i] / 3;
+    d += ` C${pts[i].x + dx3},${pts[i].y + ds[i] * dx3} ${pts[i + 1].x - dx3},${pts[i + 1].y - ds[i + 1] * dx3} ${pts[i + 1].x},${pts[i + 1].y}`;
   }
   return d;
 }
@@ -62,6 +80,16 @@ function formatLabel(dateStr: string): string {
 
 export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [hiddenDomains, setHiddenDomains] = useState<Set<string>>(new Set());
+
+  const toggleDomain = (dom: string) => {
+    setHiddenDomains((prev) => {
+      const next = new Set(prev);
+      if (next.has(dom)) next.delete(dom);
+      else next.add(dom);
+      return next;
+    });
+  };
 
   const computed = useMemo(() => {
     const buckets = data?.buckets ?? {};
@@ -82,8 +110,9 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     }
     // Ensure configured domains are present in legend even if count is 0.
     for (const dom of Object.keys(dconfig)) domainSet.add(dom);
-    // configured domains만 포함 (unknown 등 미등록 도메인 제외)
-    const domList = [...domainSet].filter((dom) => dom in dconfig);
+    // configured domains만 포함 (unknown 등 미등록 도메인 제외), 숨겨진 도메인 필터링
+    const domList = [...domainSet].filter((dom) => dom in dconfig && !hiddenDomains.has(dom));
+    const allDomList = [...domainSet].filter((dom) => dom in dconfig);
 
     const dailyData = allDates.map((date) => {
       let y0 = 0;
@@ -114,10 +143,10 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     });
     const maxCumul = Math.max(...cumulData.map((s) => s.total), 1);
 
-    return { allDates, domList, dailyData, cumulData, maxDaily, maxCumul };
-  }, [data, dconfig, days]);
+    return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul };
+  }, [data, dconfig, days, hiddenDomains]);
 
-  const { allDates, domList, dailyData, cumulData, maxDaily, maxCumul } = computed;
+  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul } = computed;
   const isEmpty = dailyData.every((s) => s.total === 0);
 
   const xPos = (i: number) => PAD.left + ((i + 0.5) / allDates.length) * IW;
@@ -334,17 +363,23 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
           justifyContent: 'center',
         }}
       >
-        {domList.map((dom) => {
+        {allDomList.map((dom) => {
           const cfg = dconfig[dom] ?? { label: dom, color: 'var(--text-muted)' };
+          const isHidden = hiddenDomains.has(dom);
           return (
             <div
               key={dom}
+              onClick={() => toggleDomain(dom)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
                 fontSize: '0.7rem',
-                color: 'var(--text-secondary)',
+                color: isHidden ? 'var(--text-muted)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                opacity: isHidden ? 0.4 : 1,
+                transition: 'opacity 0.15s',
+                userSelect: 'none',
               }}
             >
               <span
@@ -352,7 +387,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
                   width: 8,
                   height: 8,
                   borderRadius: 2,
-                  background: cfg.color,
+                  background: isHidden ? 'var(--border-default)' : cfg.color,
                   display: 'inline-block',
                 }}
               />
