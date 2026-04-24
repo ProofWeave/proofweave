@@ -30,7 +30,7 @@ export function SettingsPage() {
   const [walletCopied, setWalletCopied] = useState(false);
   const [walletLoading, setWalletLoading] = useState(true);
   const [smartWallet, setSmartWallet] = useState<SmartWalletData | null>(null);
-  const [chargeAmount, setChargeAmount] = useState('5');
+  const [chargeAmount, setChargeAmount] = useState('1');
   const [chargeStatus, setChargeStatus] = useState<'idle' | 'confirming' | 'done' | 'error'>('idle');
   const [creating, setCreating] = useState(false);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);

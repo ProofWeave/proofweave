@@ -180,7 +180,7 @@ export function MyDataSection() {
                           className="btn btn-primary btn-sm"
                           onClick={() => handleSetPrice(att.attestationId)}
                           disabled={saving}
-                          style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                          style={{ padding: '5px 10px', fontSize: '0.7rem' }}
                         >
                           {saving ? <Loader size={10} className="spin" /> : <Check size={10} />}
                           저장
@@ -188,7 +188,7 @@ export function MyDataSection() {
                         <button
                           className="btn btn-secondary btn-sm"
                           onClick={cancelEdit}
-                          style={{ padding: '3px 8px', fontSize: '0.7rem' }}
+                          style={{ padding: '5px 10px', fontSize: '0.7rem' }}
                         >
                           취소
                         </button>
@@ -197,7 +197,7 @@ export function MyDataSection() {
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => startEdit(att)}
-                        style={{ padding: '3px 10px', fontSize: '0.7rem' }}
+                        style={{ padding: '5px 12px', fontSize: '0.7rem' }}
                       >
                         <DollarSign size={10} /> 가격 설정
                       </button>

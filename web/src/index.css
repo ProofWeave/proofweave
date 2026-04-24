@@ -3107,13 +3107,3 @@ tr:hover td {
   background: var(--accent-purple-hover);
   border-color: var(--accent-purple-hover);
 }
-
-.price-filter__chip--paid.price-filter__chip--active {
-  background: #B8864A;
-  border-color: #B8864A;
-}
-
-.price-filter__chip--paid.price-filter__chip--active:hover {
-  background: #A67C30;
-  border-color: #A67C30;
-}
