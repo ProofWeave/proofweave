@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Cpu, Globe } from 'lucide-react';
+import { Cpu, Globe, ChevronsDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { AttestationMetadataView } from '../components/AttestationCard';
@@ -202,7 +202,10 @@ export function DashboardPage() {
             onMouseEnter={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-primary)'; }}
             onMouseLeave={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-muted)'; }}
           >
-            더보기 →
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: '0.72rem' }}>Explorer에서 더보기</span>
+              <ChevronsDown size={22} style={{ animation: 'bounce-down 1.2s ease-in-out infinite' }} />
+            </div>
           </div>
         )}
       </div>

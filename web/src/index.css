@@ -2412,12 +2412,13 @@ tr:hover td {
 
 .chat-model-select {
   padding: 5px 10px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
+  background: rgba(34, 24, 28, 0.05);
+  border: 1px solid rgba(34, 24, 28, 0.16);
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 0.75rem;
+  font-weight: 500;
   cursor: pointer;
   outline: none;
   appearance: none;
@@ -2430,7 +2431,27 @@ tr:hover td {
 }
 
 .chat-model-select:focus {
-  border-color: var(--accent-purple);
+  border-color: rgba(34, 24, 28, 0.38);
+  box-shadow: 0 0 0 3px rgba(34, 24, 28, 0.08);
+}
+
+.chat-model-quota {
+  background: rgba(34, 24, 28, 0.08);
+  border: 1px solid rgba(34, 24, 28, 0.14);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.chat-model-quota--low {
+  background: rgba(34, 24, 28, 0.12);
+  border-color: rgba(34, 24, 28, 0.2);
+  color: #3A3034;
+}
+
+.chat-model-quota--empty {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-secondary);
 }
 
 /* ── New Chat Button ────────────────────────────────────────── */
@@ -3106,4 +3127,10 @@ tr:hover td {
 .price-filter__chip--active:hover {
   background: var(--accent-purple-hover);
   border-color: var(--accent-purple-hover);
+}
+
+/* ── Bounce-down animation ─────────────────────────────────── */
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
 }
