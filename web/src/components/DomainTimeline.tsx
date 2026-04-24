@@ -115,7 +115,13 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
     const rawDomList = [...domainSet].filter((dom) => dom in dconfig && !hiddenDomains.has(dom));
     const allDomList = [...domainSet].filter((dom) => dom in dconfig);
 
-    // 각 도메인의 하루 최대 건수 계산 → 2건 이하면 etc로 합침
+    // 하루 최대 총건수 계산 → 그 15% 이하인 도메인은 etc로 합침
+    const dailyTotals = allDates.map((date) =>
+      rawDomList.reduce((sum, dom) => sum + (buckets[date]?.[dom] ?? 0), 0)
+    );
+    const peakDaily = Math.max(...dailyTotals, 1);
+    const etcThreshold = Math.floor(peakDaily * 0.15);
+
     const maxPerDom: Record<string, number> = {};
     for (const dom of rawDomList) {
       maxPerDom[dom] = 0;
@@ -125,10 +131,22 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
       }
     }
     const ETC_KEY = '_etc';
-    const majorDoms = rawDomList.filter((d) => maxPerDom[d] > 2);
-    const minorDoms = rawDomList.filter((d) => maxPerDom[d] <= 2);
+    const majorDoms = rawDomList.filter((d) => maxPerDom[d] > etcThreshold);
+    const minorDoms = rawDomList.filter((d) => maxPerDom[d] <= etcThreshold);
     const hasEtc = minorDoms.length > 0;
     const domList = hasEtc ? [...majorDoms, ETC_KEY] : majorDoms;
+
+    // 레전드용: 전체 기간 총 건수 대비 10% 미만 → legendEtc로 합침
+    const totalAll = rawDomList.reduce((sum, dom) =>
+      sum + allDates.reduce((s, date) => s + (buckets[date]?.[dom] ?? 0), 0), 0
+    );
+    const legendThreshold = Math.floor(totalAll * 0.10);
+    const domTotals: Record<string, number> = {};
+    for (const dom of rawDomList) {
+      domTotals[dom] = allDates.reduce((s, date) => s + (buckets[date]?.[dom] ?? 0), 0);
+    }
+    const legendMajorDoms = allDomList.filter((d) => (domTotals[d] ?? 0) >= legendThreshold);
+    const legendMinorDoms = allDomList.filter((d) => (domTotals[d] ?? 0) < legendThreshold && (domTotals[d] ?? 0) > 0);
 
     // 차트용 데이터 (etc 합산)
     const dailyData = allDates.map((date) => {
@@ -193,10 +211,11 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
       return { date, layers, total };
     });
 
-    return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, minorDoms };
+    return { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, minorDoms, legendMajorDoms, legendMinorDoms, domTotals };
   }, [data, dconfig, days, hiddenDomains]);
 
-  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData } = computed;
+  const { allDates, domList, allDomList, dailyData, cumulData, maxDaily, maxCumul, tooltipDailyData, tooltipCumulData, legendMajorDoms, legendMinorDoms, domTotals } = computed;
+  const [legendEtcHover, setLegendEtcHover] = useState(false);
   const isEmpty = dailyData.every((s) => s.total === 0);
 
   const xPos = (i: number) => PAD.left + ((i + 0.5) / allDates.length) * IW;
@@ -413,7 +432,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
           justifyContent: 'center',
         }}
       >
-        {allDomList.map((dom) => {
+        {legendMajorDoms.map((dom) => {
           const cfg = dconfig[dom] ?? { label: dom, color: 'var(--text-muted)' };
           const isHidden = hiddenDomains.has(dom);
           return (
@@ -445,6 +464,65 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
             </div>
           );
         })}
+        {legendMinorDoms.length > 0 && (
+          <div
+            onMouseEnter={() => setLegendEtcHover(true)}
+            onMouseLeave={() => setLegendEtcHover(false)}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: '0.7rem',
+              color: 'var(--text-muted)',
+              cursor: 'default',
+              userSelect: 'none',
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: '#B0A8A4',
+                display: 'inline-block',
+              }}
+            />
+            etc. ({legendMinorDoms.length})
+            {legendEtcHover && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  marginBottom: 6,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  fontSize: '0.65rem',
+                  boxShadow: 'var(--shadow-md)',
+                  zIndex: 20,
+                  whiteSpace: 'nowrap',
+                  minWidth: 100,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>etc. 포함 항목</div>
+                {legendMinorDoms.map((dom) => {
+                  const cfg = dconfig[dom] ?? { label: dom, color: 'var(--text-muted)' };
+                  return (
+                    <div key={dom} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 1, background: cfg.color }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>{cfg.label}</span>
+                      <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text-primary)' }}>{domTotals[dom] ?? 0}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {tooltip && (
