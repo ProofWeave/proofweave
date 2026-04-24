@@ -126,13 +126,12 @@ export function LandingPage() {
           </div>
 
           <p className="landing-tagline">
-            AI 데이터를 온체인에 증명하고,<br />
-            신뢰 가능한 데이터 마켓을 만듭니다.
+            AI 데이터의 진위를 증명하고,<br />
+            안전하게 거래하세요.
           </p>
 
           <p className="landing-description">
-            AI 분석 결과를 블록체인에 기록하여 데이터의 진위를 증명하고,
-            암호화된 데이터를 안전하게 거래할 수 있는 탈중앙화 마켓플레이스입니다.
+            블록체인 기반 데이터 증명 · 암호화 저장 · 탈중앙 마켓플레이스
           </p>
 
           <button className="landing-cta" onClick={handleGetStarted}>
@@ -164,13 +163,13 @@ export function LandingPage() {
               <Cpu size={24} />
             </div>
             <h3>AI 메타데이터</h3>
-            <p>Gemini가 자동으로 도메인, 키워드, 요약을 추출합니다.</p>
+            <p>LLM이 자동으로 도메인, 키워드, 요약을 추출합니다.</p>
           </div>
         </div>
 
         {/* Footer */}
         <footer className="landing-footer">
-          <span>Built with Abstract · IPFS · Gemini</span>
+          <span>Built with Abstract · IPFS · AI</span>
         </footer>
       </div>
     </div>
