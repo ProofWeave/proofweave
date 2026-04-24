@@ -1004,7 +1004,7 @@ tr:hover td {
   cursor: pointer;
   transition: all var(--transition-base);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .attestation-card::before {
@@ -2822,16 +2822,31 @@ tr:hover td {
 }
 
 /* ============================================================
-   Paid Card Border Distinction
+   Free / Paid Card Badges
    ============================================================ */
 
-.attestation-card--premium {
-  border: 1.5px solid #C8963E;
+/* 무료공개 배지 — 우측 상단 작은 뱃지 */
+.attestation-card__badge--free {
+  background: rgba(74, 124, 89, 0.08);
+  color: #4A7C59;
+  border: 1px solid rgba(74, 124, 89, 0.18);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
 }
 
-.attestation-card--premium:hover {
-  border-color: #B8864A;
-  box-shadow: var(--shadow-md);
+/* 유료 구매됨 — 아주 작은 표시 */
+.attestation-card__badge--purchased-sm {
+  background: rgba(139, 58, 74, 0.06);
+  color: var(--accent-purple);
+  border: 1px solid rgba(139, 58, 74, 0.15);
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.8;
 }
 
 /* ── Price Filter Chips ────────────────────────────────────── */

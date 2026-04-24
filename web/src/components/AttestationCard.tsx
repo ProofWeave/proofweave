@@ -97,7 +97,7 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
 
   return (
     <div
-      className={`attestation-card ${isPaid ? 'attestation-card--premium' : ''}`}
+      className="attestation-card"
       style={{ '--domain-bg': domainColor.bg, '--domain-border': domainColor.border } as React.CSSProperties}
       onClick={() => onSelect(attestation.attestationId)}
     >
@@ -107,10 +107,13 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
           {hasMetadata ? meta!.title : truncateHash(attestation.contentHash)}
         </h3>
         <div className="attestation-card__badges">
-          {isPurchased && (
-            <span className="attestation-card__badge attestation-card__badge--purchased">
-              <ShoppingBag size={10} /> 구매됨
-            </span>
+          {/* 무료 데이터: 무료공개 배지 */}
+          {!isPaid && (
+            <span className="attestation-card__badge attestation-card__badge--free">무료공개</span>
+          )}
+          {/* 유료 + 구매 완료: 작은 구매됨 표시 */}
+          {isPaid && isPurchased && (
+            <span className="attestation-card__badge attestation-card__badge--purchased-sm">구매됨</span>
           )}
           {meta?.metadataStatus === 'pending' && (
             <span className="attestation-card__badge attestation-card__badge--pending">분석 중</span>
@@ -193,10 +196,10 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
             <ExternalLink size={12} /> Tx
           </a>
           <button
-            className={`attestation-card__action ${isPurchased ? 'attestation-card__action--secondary' : ''}`}
+            className={`attestation-card__action ${isPaid && !isPurchased ? '' : 'attestation-card__action--secondary'}`}
             onClick={(e) => { e.stopPropagation(); onSelect(attestation.attestationId); }}
           >
-            <FileSearch size={13} /> {isPurchased ? '조회' : '상세'}
+            <FileSearch size={13} /> {isPaid && !isPurchased ? '구매하기' : '조회'}
           </button>
         </div>
       </div>
