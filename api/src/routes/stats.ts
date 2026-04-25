@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
 import { pool } from "../services/db.js";
+import {
+  getUserAnalyticsSummary,
+  parseAnalyticsRange,
+} from "../services/analytics.js";
 
 export const statsRouter = Router();
 
@@ -54,5 +58,67 @@ statsRouter.get("/stats/me", authenticate, async (req, res) => {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error("[stats] Error:", errMsg);
     res.status(500).json({ error: "Failed to fetch stats" });
+  }
+});
+
+/**
+ * GET /stats/analytics/me?range=30d — 실제 토큰 절감 기반 Analytics
+ */
+statsRouter.get("/stats/analytics/me", authenticate, async (req, res) => {
+  const owner = req.apiKeyOwner;
+  if (!owner) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const range = parseAnalyticsRange(req.query.range);
+
+  try {
+    const analytics = await getUserAnalyticsSummary(owner, range);
+    res.json(analytics);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[stats/analytics] Error:", errMsg);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+
+/**
+ * GET /stats/timeline?days=30 — 도메인별 일자 집계 (공개)
+ *
+ * 지정한 기간 동안 각 날짜별로 domain → count 맵을 반환.
+ * 메타데이터가 없거나 domain이 비어있으면 'unknown' 으로 집계.
+ */
+statsRouter.get("/stats/timeline", async (req, res) => {
+  const rawDays = Number(req.query.days);
+  const days = Number.isFinite(rawDays) ? Math.min(Math.max(Math.floor(rawDays), 1), 90) : 30;
+
+  try {
+    const result = await pool.query<{ day: string; domain: string | null; count: string }>(
+      `
+      SELECT
+        to_char(date_trunc('day', created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+        COALESCE(NULLIF(metadata->>'domain', ''), 'unknown') AS domain,
+        COUNT(*)::bigint AS count
+      FROM attestations
+      WHERE created_at >= NOW() - ($1::int || ' days')::interval
+      GROUP BY 1, 2
+      ORDER BY 1 ASC
+      `,
+      [days]
+    );
+
+    const buckets: Record<string, Record<string, number>> = {};
+    for (const row of result.rows) {
+      const dom = row.domain || "unknown";
+      if (!buckets[row.day]) buckets[row.day] = {};
+      buckets[row.day][dom] = Number(row.count);
+    }
+
+    res.json({ days, buckets });
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[stats/timeline] Error:", errMsg);
+    res.status(500).json({ error: "Failed to fetch timeline" });
   }
 });

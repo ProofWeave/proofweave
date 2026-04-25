@@ -161,7 +161,60 @@ CREATE INDEX IF NOT EXISTS idx_attestations_keywords
   ON attestations USING GIN (keywords);
 CREATE INDEX IF NOT EXISTS idx_attestations_metadata
   ON attestations USING GIN (metadata jsonb_path_ops);
-`;
+
+-- ============================================================
+--  Analytics: real LLM usage and one-time data reuse metrics
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS llm_usage_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'google',
+  model TEXT NOT NULL,
+  input_tokens BIGINT NOT NULL DEFAULT 0,
+  output_tokens BIGINT NOT NULL DEFAULT 0,
+  estimated_cost_usd_micros BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_usage_owner_created_at
+  ON llm_usage_events(owner, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS attestation_token_baselines (
+  attestation_id TEXT PRIMARY KEY REFERENCES attestations(attestation_id) ON DELETE CASCADE,
+  llm_usage_event_id UUID UNIQUE REFERENCES llm_usage_events(id) ON DELETE SET NULL,
+  owner TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens BIGINT NOT NULL DEFAULT 0,
+  output_tokens BIGINT NOT NULL DEFAULT 0,
+  estimated_cost_usd_micros BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_attestation_token_baselines_owner
+  ON attestation_token_baselines(owner);
+
+CREATE TABLE IF NOT EXISTS data_reuse_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  attestation_id TEXT NOT NULL REFERENCES attestations(attestation_id) ON DELETE CASCADE,
+  consumer TEXT NOT NULL,
+  receipt_id UUID REFERENCES access_receipts(receipt_id) ON DELETE SET NULL,
+  access_type TEXT NOT NULL CHECK (access_type IN ('paid', 'free', 'receipt')),
+  metered BOOLEAN NOT NULL DEFAULT false,
+  avoided_input_tokens BIGINT NOT NULL DEFAULT 0,
+  avoided_output_tokens BIGINT NOT NULL DEFAULT 0,
+  avoided_cost_usd_micros BIGINT NOT NULL DEFAULT 0,
+  actual_llm_cost_usd_micros BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (consumer, attestation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_reuse_consumer_created_at
+  ON data_reuse_events(consumer, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_data_reuse_attestation
+  ON data_reuse_events(attestation_id);
+	`;
 
 /**
  * 서버 시작 시 import하여 호출 가능한 마이그레이션 함수
@@ -185,4 +238,3 @@ if (isDirectRun) {
     .then(() => pool.end())
     .catch(() => process.exit(1));
 }
-

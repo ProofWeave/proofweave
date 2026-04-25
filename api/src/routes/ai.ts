@@ -2,6 +2,7 @@ import { Router } from "express";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { recordLlmUsage, usdToMicros } from "../services/analytics.js";
 
 export const aiRouter = Router();
 
@@ -193,7 +194,24 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
     // 비용 추정
     const inputCost = (inputTokens / 1_000_000) * modelConfig.inputCostPer1M;
     const outputCost = (outputTokens / 1_000_000) * modelConfig.outputCostPer1M;
-    const estimatedCost = +(inputCost + outputCost).toFixed(6);
+    const estimatedCostUsdMicros = usdToMicros(inputCost + outputCost);
+    const estimatedCost = estimatedCostUsdMicros / 1_000_000;
+
+    let usageEventId: string | undefined;
+    if (usage) {
+      try {
+        usageEventId = await recordLlmUsage({
+          owner: userKey,
+          provider: "google",
+          model: modelId,
+          inputTokens,
+          outputTokens,
+          estimatedCostUsdMicros,
+        });
+      } catch (analyticsErr) {
+        console.error("[ai/analyze] Failed to record LLM usage:", analyticsErr);
+      }
+    }
 
     // Google Search grounding 메타데이터 추출
     const grounding = response.candidates?.[0]?.groundingMetadata;
@@ -212,6 +230,7 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
       inputTokens,
       outputTokens,
       estimatedCost,
+      usageEventId,
       remaining,
       dailyLimit: modelConfig.dailyLimit,
       sources,

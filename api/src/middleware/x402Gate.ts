@@ -63,6 +63,10 @@ export async function x402Gate(
         parsed.hmac
       );
       if (valid) {
+        req.accessContext = {
+          accessType: "receipt",
+          receiptId: parsed.receiptId,
+        };
         res.setHeader(
           "X-Access-Receipt",
           `${parsed.receiptId}.${parsed.hmac}`
@@ -77,6 +81,10 @@ export async function x402Gate(
   // 1b. 서버 내부 receipt 조회 (API Key 기반)
   const existingReceipt = await hasValidReceipt(payer, attestationId);
   if (existingReceipt) {
+    req.accessContext = {
+      accessType: "receipt",
+      receiptId: existingReceipt.receiptId,
+    };
     res.setHeader(
       "X-Access-Receipt",
       `${existingReceipt.receiptId}.${existingReceipt.hmac}`
@@ -89,6 +97,7 @@ export async function x402Gate(
   const pricing = await getPrice(attestationId);
 
   if (!pricing || pricing.priceUsdMicros === 0) {
+    req.accessContext = { accessType: "free", receiptId: null };
     next();
     return;
   }
@@ -132,6 +141,7 @@ export async function x402Gate(
         );
 
         await processPaymentAndIssueReceipt(
+          req,
           res,
           next,
           attestationId,
@@ -193,6 +203,7 @@ export async function x402Gate(
 // P0-3: 모든 DB 호출에 동일 PoolClient 전달
 
 async function processPaymentAndIssueReceipt(
+  req: Request,
   res: Response,
   next: NextFunction,
   attestationId: string,
@@ -220,6 +231,10 @@ async function processPaymentAndIssueReceipt(
       );
       if (existingReceipt.rows.length > 0) {
         const r = existingReceipt.rows[0];
+        req.accessContext = {
+          accessType: "paid",
+          receiptId: r.receipt_id,
+        };
         res.setHeader("X-Access-Receipt", `${r.receipt_id}.${r.hmac}`);
         next();
         return;
@@ -261,6 +276,10 @@ async function processPaymentAndIssueReceipt(
       "X-Access-Receipt",
       `${receipt.receiptId}.${receipt.hmac}`
     );
+    req.accessContext = {
+      accessType: "paid",
+      receiptId: receipt.receiptId,
+    };
     next();
   } catch (err: unknown) {
     await client.query("ROLLBACK");
@@ -271,4 +290,3 @@ async function processPaymentAndIssueReceipt(
     client.release();
   }
 }
-

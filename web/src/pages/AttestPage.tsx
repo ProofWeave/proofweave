@@ -22,6 +22,7 @@ interface AnalysisResult {
   inputTokens: number;
   outputTokens: number;
   estimatedCost: number;
+  usageEventId?: string;
   remaining: number;
   dailyLimit: number;
 }
@@ -39,6 +40,7 @@ interface ChatMessage {
     inputTokens: number;
     outputTokens: number;
     estimatedCost: number;
+    usageEventId?: string;
     remaining: number;
     dailyLimit: number;
     uploadAllowed: boolean;
@@ -247,6 +249,7 @@ export function AttestPage() {
           inputTokens: data.inputTokens,
           outputTokens: data.outputTokens,
           estimatedCost: data.estimatedCost,
+          usageEventId: data.usageEventId,
           remaining: data.remaining,
           dailyLimit: data.dailyLimit,
           uploadAllowed,
@@ -289,6 +292,7 @@ export function AttestPage() {
           outputTokens: msg.meta.outputTokens,
         },
         aiModel: msg.meta.model,
+        usageEventId: msg.meta.usageEventId,
       });
 
       setMessages((prev) =>
@@ -482,7 +486,7 @@ export function AttestPage() {
             <div className="chat-input-row">
               <textarea
                 ref={textareaRef}
-                placeholder="예: 이더리움 Curve Finance 재진입 공격 사례를 분석해줘"
+                placeholder="예: 사진 정리 앱에서 중복 이미지를 빠르게 찾는 방법을 설명해줘"
                 value={prompt}
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
@@ -520,7 +524,7 @@ export function AttestPage() {
               </select>
 
               {currentModel && (
-                <span className={`badge ${currentModel.remaining <= 0 ? 'badge-error' : currentModel.remaining <= 2 ? 'badge-warning' : 'badge-success'}`}>
+                <span className={`badge chat-model-quota ${currentModel.remaining <= 0 ? 'chat-model-quota--empty' : currentModel.remaining <= 2 ? 'chat-model-quota--low' : ''}`}>
                   {currentModel.remaining}/{currentModel.dailyLimit}회
                 </span>
               )}

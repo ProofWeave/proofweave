@@ -8,6 +8,7 @@ import {
   searchAttestations,
   getSearchFacets,
 } from "../services/attestation.js";
+import { recordDataReuseOnce } from "../services/analytics.js";
 
 export const attestationsRouter = Router();
 
@@ -51,6 +52,19 @@ attestationsRouter.get("/attestations/:id/detail", authenticate, x402Gate, async
 
   try {
     const { plaintext, attestation } = await getAttestationDetail(id);
+    const consumer = req.apiKeyOwner;
+    if (consumer) {
+      try {
+        await recordDataReuseOnce({
+          attestationId: id,
+          consumer,
+          receiptId: req.accessContext?.receiptId ?? null,
+          accessType: req.accessContext?.accessType ?? "free",
+        });
+      } catch (analyticsErr) {
+        console.error("[GET /attestations/:id/detail] Failed to record reuse:", analyticsErr);
+      }
+    }
 
     res.status(200).json({
       attestationId: attestation.attestationId,

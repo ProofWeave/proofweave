@@ -68,12 +68,23 @@ async function seed() {
   const now = new Date();
   let inserted = 0;
 
+  // 주력 도메인 가중치: security/ai_ml/cryptocurrency가 전체의 ~60%
+  const WEIGHTED_DOMAINS = [
+    ...Array(4).fill("security"),
+    ...Array(4).fill("ai_ml"),
+    ...Array(4).fill("cryptocurrency"),
+    ...Array(2).fill("defi"),
+    ...Array(2).fill("blockchain"),
+    "smart_contract", "data_science", "infrastructure", "general",
+  ];
+
   for (let daysAgo = 28; daysAgo >= 0; daysAgo--) {
-    const baseCount = daysAgo < 7 ? 4 : daysAgo < 14 ? 3 : daysAgo < 21 ? 2 : 1;
-    const count = baseCount + Math.floor(Math.random() * 3);
+    // 하루 최소 8건, 최근일수록 많이 (8~14건)
+    const baseCount = daysAgo < 7 ? 10 : daysAgo < 14 ? 8 : daysAgo < 21 ? 6 : 5;
+    const count = baseCount + Math.floor(Math.random() * 5);
 
     for (let j = 0; j < count; j++) {
-      const domain = pick(DOMAINS);
+      const domain = pick(WEIGHTED_DOMAINS);
       const d = new Date(now);
       d.setDate(d.getDate() - daysAgo);
       d.setHours(Math.floor(Math.random() * 18) + 6, Math.floor(Math.random() * 60));

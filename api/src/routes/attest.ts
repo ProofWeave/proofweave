@@ -3,6 +3,10 @@ import { authenticate } from "../middleware/authenticate.js";
 import { createAttestation } from "../services/attestation.js";
 import { setPrice } from "../services/pricing.js";
 import { pseudonymize } from "../services/sanitize.js";
+import {
+  assertUsageEventLinkable,
+  linkUsageToAttestation,
+} from "../services/analytics.js";
 
 export const attestRouter = Router();
 
@@ -18,7 +22,7 @@ export const attestRouter = Router();
  * - 웹 사용자 (web:email): CDP Smart Wallet 주소를 사용 (register-web 시 자동 생성)
  */
 attestRouter.post("/attest", authenticate, async (req, res) => {
-  const { data, aiModel, priceUsdMicros } = req.body;
+  const { data, aiModel, priceUsdMicros, usageEventId } = req.body;
 
   // 필수 필드 검증
   if (!data || typeof data !== "object") {
@@ -40,6 +44,21 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
 
   const apiKeyOwner = req.apiKeyOwner!;
   const isWebUser = apiKeyOwner.startsWith("web:");
+
+  if (usageEventId !== undefined) {
+    if (typeof usageEventId !== "string" || usageEventId.trim().length === 0) {
+      res.status(400).json({ error: "usageEventId must be a non-empty string" });
+      return;
+    }
+
+    try {
+      await assertUsageEventLinkable(usageEventId, apiKeyOwner);
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : "Invalid usageEventId";
+      res.status(400).json({ error: "Invalid usageEventId", detail });
+      return;
+    }
+  }
 
   // creator 결정: 웹 사용자 → Smart Wallet, CLI → 자신의 주소
   let creator: string;
@@ -64,6 +83,22 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       aiModel,
     });
 
+    let analyticsLinked = false;
+    let analyticsError: string | undefined;
+    if (typeof usageEventId === "string") {
+      try {
+        await linkUsageToAttestation({
+          usageEventId,
+          attestationId: result.attestationId,
+          owner: apiKeyOwner,
+        });
+        analyticsLinked = true;
+      } catch (err: unknown) {
+        analyticsError = err instanceof Error ? err.message : "Analytics baseline link failed";
+        console.warn("[POST /attest] analytics baseline link failed:", analyticsError);
+      }
+    }
+
     // priceUsdMicros가 지정된 경우 자동 가격 설정 (실패해도 attest 성공은 유지)
     let pricing = null;
     let pricingError: string | undefined;
@@ -86,6 +121,9 @@ attestRouter.post("/attest", authenticate, async (req, res) => {
       // T3: submittedBy 응답에서 제거 (PII 보호)
       pricing: pricing
         ? { priceUsdMicros: pricing.priceUsdMicros, priceUsd: (pricing.priceUsdMicros / 1_000_000).toFixed(6) }
+        : undefined,
+      analytics: typeof usageEventId === "string"
+        ? { usageEventId, baselineLinked: analyticsLinked, error: analyticsError }
         : undefined,
       message: "Attestation created and recorded on-chain",
     });

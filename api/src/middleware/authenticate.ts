@@ -7,6 +7,10 @@ declare global {
     interface Request {
       apiKeyOwner?: string;
       smartWalletAddress?: string | null;
+      accessContext?: {
+        accessType: "paid" | "free" | "receipt";
+        receiptId?: string | null;
+      };
     }
   }
 }
