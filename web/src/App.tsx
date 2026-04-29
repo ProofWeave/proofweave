@@ -12,6 +12,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import type { ReactNode } from 'react';
+import { isAdminWhitelisted } from './config/adminWhitelist';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,29 @@ function PublicOnlyRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** 화이트리스트 관리자만 접근 가능 */
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="auth-container">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isAdminWhitelisted(user)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -93,7 +117,14 @@ export default function App() {
               <Route path="explorer" element={<ExplorerPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="admin" element={<AdminDashboard />} />
+              <Route
+                path="admin"
+                element={(
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                )}
+              />
             </Route>
 
             {/* Fallback — 루트로 보내서 로그인 여부 판단 */}

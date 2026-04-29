@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { isAdminWhitelisted } from '../config/adminWhitelist';
 import {
   LayoutDashboard,
   FileCheck,
@@ -27,6 +28,7 @@ export function AppLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const canAccessAdmin = isAdminWhitelisted(user);
 
   // ── Cmd+K Search Modal ──
   const [searchOpen, setSearchOpen] = useState(false);
@@ -89,7 +91,9 @@ export function AppLayout() {
         </div>
 
         <nav className="sidebar-nav" role="navigation" aria-label="Main">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          {NAV_ITEMS
+            .filter((item) => (item.to === '/admin' ? canAccessAdmin : true))
+            .map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -100,7 +104,7 @@ export function AppLayout() {
               <Icon size={18} />
               {label}
             </NavLink>
-          ))}
+            ))}
         </nav>
 
         {/* Cmd+K shortcut hint */}
