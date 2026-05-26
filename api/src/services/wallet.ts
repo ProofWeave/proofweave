@@ -1,3 +1,4 @@
+import { encodeFunctionData } from "viem";
 import { getCdpClient } from "../config/cdp.js";
 import { env } from "../config/env.js";
 import { pool } from "./db.js";
@@ -9,7 +10,7 @@ import type { SmartWalletInfo } from "../types/payment.js";
  * 에이전트를 위한 스마트 지갑 관리:
  * - 생성: register 시 ERC-4337 Smart Account 자동 생성
  * - 잔고 조회: USDC 잔고 확인
- * - 전송: 결제 시 스마트 지갑 → operator로 USDC 자동 전송
+ * - 결제: 스마트 지갑 → vault approve + deposit으로 creator claimable 자동 적립
  */
 
 // ── 스마트 지갑 생성 ─────────────────────────────────────────
@@ -127,35 +128,44 @@ export async function getWalletBalance(
 
 // ── USDC 전송 (결제 실행) ────────────────────────────────────
 
-// USDC 컨트랙트 주소 (env에서 관리 — 네트워크별 상이)
-const USDC_CONTRACT_ADDRESS = env.USDC_CONTRACT_ADDRESS as `0x${string}`;
+type Hex = `0x${string}`;
 
-/**
- * 스마트 지갑에서 operator 주소로 USDC 전송
- * CDP Server Wallet의 TEE에서 서명 → Policy Engine 검증 → 온체인 전송
- *
- * ⚠️ P0-1: to는 USDC 컨트랙트 주소 (ERC-20 transfer calldata)
- * ⚠️ P0-2: tx finality 확인 후에만 txHash 반환
- *
- * @returns 확정된 txHash (revert 시 에러 throw)
- */
-export async function transferUsdcFromSmartWallet(
-  smartWalletAddress: string,
-  toAddress: string,
-  amountUsdMicros: number
-): Promise<string> {
-  if (!env.CDP_API_KEY_ID) {
-    // CDP 미설정 시 스킵 (개발 모드)
-    console.warn(
-      "[wallet] DEV MODE: skipping USDC transfer",
-      { from: smartWalletAddress, to: toAddress, amount: amountUsdMicros }
-    );
-    return `dev-tx-${Date.now()}`;
-  }
+// USDC / vault 컨트랙트 주소 (env에서 관리 — 네트워크별 상이)
+const USDC_CONTRACT_ADDRESS = env.USDC_CONTRACT_ADDRESS as Hex;
+const VAULT_ADDRESS = env.VAULT_ADDRESS as Hex;
 
+const erc20Abi = [
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+const vaultAbi = [
+  {
+    type: "function",
+    name: "depositForAttestation",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "attestationId", type: "bytes32" },
+      { name: "creator", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "receiptRef", type: "bytes32" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+async function getSmartAccountForPayment(smartWalletAddress: string) {
   const cdp = getCdpClient();
 
-  // 1. DB에서 이 Smart Wallet의 owner EOA 주소 조회
+  // DB에서 이 Smart Wallet의 owner EOA 주소 조회
   const eoaResult = await pool.query(
     `SELECT eoa_address, wallet_address, smart_wallet_address FROM api_keys
      WHERE LOWER(smart_wallet_address) = LOWER($1) AND revoked_at IS NULL
@@ -189,17 +199,45 @@ export async function transferUsdcFromSmartWallet(
     throw new Error(`[wallet] No EOA found for smart wallet: ${smartWalletAddress}`);
   }
 
-  // 2. EOA 계정 객체 조회 (CDP TEE에서 관리)
+  // EOA 계정 객체 조회 (CDP TEE에서 관리)
   const ownerAccount = await cdp.evm.getAccount({
-    address: eoaAddress as `0x${string}`,
+    address: eoaAddress as Hex,
   });
 
-  // 3. Smart Account 객체 조회 (DB에서 가져온 checksummed 주소 사용)
+  // Smart Account 객체 조회 (DB에서 가져온 checksummed 주소 사용)
   const dbSmartWalletAddress = eoaResult.rows[0]?.smart_wallet_address || smartWalletAddress;
   const smartAccount = await cdp.evm.getSmartAccount({
-    address: dbSmartWalletAddress as `0x${string}`,
+    address: dbSmartWalletAddress as Hex,
     owner: ownerAccount,
   });
+
+  return { cdp, smartAccount };
+}
+
+/**
+ * 스마트 지갑에서 operator 주소로 USDC 전송
+ * CDP Server Wallet의 TEE에서 서명 → Policy Engine 검증 → 온체인 전송
+ *
+ * ⚠️ P0-1: to는 USDC 컨트랙트 주소 (ERC-20 transfer calldata)
+ * ⚠️ P0-2: tx finality 확인 후에만 txHash 반환
+ *
+ * @returns 확정된 txHash (revert 시 에러 throw)
+ */
+export async function transferUsdcFromSmartWallet(
+  smartWalletAddress: string,
+  toAddress: string,
+  amountUsdMicros: number
+): Promise<string> {
+  if (!env.CDP_API_KEY_ID) {
+    // CDP 미설정 시 스킵 (개발 모드)
+    console.warn(
+      "[wallet] DEV MODE: skipping USDC transfer",
+      { from: smartWalletAddress, to: toAddress, amount: amountUsdMicros }
+    );
+    return `dev-tx-${Date.now()}`;
+  }
+
+  const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
 
   // 2. Smart Account는 sendUserOperation 사용 (ERC-4337)
   //    sendTransaction은 EOA 전용 — Smart Account에 사용하면 실패
@@ -234,6 +272,97 @@ export async function transferUsdcFromSmartWallet(
 }
 
 /**
+ * 스마트 지갑에서 vault로 USDC를 예치하고 attestation creator claimable을 적립한다.
+ * 하나의 UserOp에 approve + depositForAttestation을 묶어 bare transfer의 attribution 문제를 막는다.
+ */
+export async function depositUsdcToVaultFromSmartWallet(
+  smartWalletAddress: string,
+  attestationId: string,
+  creatorAddress: string,
+  amountUsdMicros: number,
+  receiptRef: string
+): Promise<string> {
+  const attestationIdHex = asBytes32(attestationId, "attestationId");
+  const creatorHex = asAddress(creatorAddress, "creatorAddress");
+  const receiptRefHex = asBytes32(receiptRef, "receiptRef");
+  const amount = BigInt(amountUsdMicros);
+
+  if (!env.CDP_API_KEY_ID || env.NODE_ENV === "development") {
+    // CDP 미설정 시 스킵 (개발 모드)
+    console.warn(
+      "[wallet] DEV MODE: skipping vault deposit",
+      {
+        from: smartWalletAddress,
+        vault: VAULT_ADDRESS,
+        attestationId: attestationIdHex,
+        creator: creatorHex,
+        amount: amountUsdMicros,
+        receiptRef: receiptRefHex,
+      }
+    );
+    return `dev-vault-tx-${Date.now()}`;
+  }
+
+  const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
+
+  const userOp = await cdp.evm.sendUserOperation({
+    smartAccount,
+    network: "base-sepolia",
+    calls: [
+      {
+        to: USDC_CONTRACT_ADDRESS,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [VAULT_ADDRESS, amount],
+        }),
+      },
+      {
+        to: VAULT_ADDRESS,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: vaultAbi,
+          functionName: "depositForAttestation",
+          args: [attestationIdHex, creatorHex, amount, receiptRefHex],
+        }),
+      },
+    ],
+  });
+
+  const result = await cdp.evm.waitForUserOperation({
+    userOpHash: userOp.userOpHash,
+    smartAccountAddress: userOp.smartAccountAddress,
+    waitOptions: { timeoutSeconds: 60 },
+  });
+
+  if (result.status === "failed") {
+    throw new Error(`[wallet] Vault deposit UserOp failed: ${result.userOpHash}`);
+  }
+
+  const txHash = result.transactionHash;
+  if (!txHash) {
+    throw new Error("[wallet] No txHash after vault deposit UserOp completion");
+  }
+
+  return txHash;
+}
+
+function asAddress(value: string, name: string): Hex {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
+    throw new Error(`[wallet] Invalid ${name}: ${value}`);
+  }
+  return value as Hex;
+}
+
+function asBytes32(value: string, name: string): Hex {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
+    throw new Error(`[wallet] Invalid ${name}: ${value}`);
+  }
+  return value as Hex;
+}
+
+/**
  * USDC transfer(address, uint256) ABI 인코딩
  * selector: 0xa9059cbb
  */
@@ -243,4 +372,3 @@ function encodeUsdcTransfer(to: string, amount: number): `0x${string}` {
   const paddedAmount = BigInt(amount).toString(16).padStart(64, "0");
   return `0x${selector}${paddedTo}${paddedAmount}`;
 }
-

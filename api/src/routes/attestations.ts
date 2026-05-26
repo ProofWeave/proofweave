@@ -9,6 +9,12 @@ import {
   getSearchFacets,
 } from "../services/attestation.js";
 import { recordDataReuseOnce } from "../services/analytics.js";
+import {
+  getReputationSummary,
+  ReputationError,
+  submitReputation,
+  type ReputationRating,
+} from "../services/reputation.js";
 
 export const attestationsRouter = Router();
 
@@ -84,6 +90,66 @@ attestationsRouter.get("/attestations/:id/detail", authenticate, x402Gate, async
 
     console.error("[GET /attestations/:id/detail] Error:", message);
     res.status(500).json({ error: "Failed to get attestation detail", detail: message });
+  }
+});
+
+/**
+ * POST /attestations/:id/reputation
+ * Account-based V1 reputation. Paid artifacts require a vault-backed receipt.
+ */
+attestationsRouter.post("/attestations/:id/reputation", authenticate, async (req, res) => {
+  const attestationId = req.params.id as string;
+  const accountAddress = resolveAuthenticatedAccount(req);
+  const { rating, note, artifactHash } = req.body as {
+    rating?: ReputationRating;
+    note?: string | null;
+    artifactHash?: string | null;
+  };
+
+  if (!accountAddress) {
+    res.status(403).json({ error: "No wallet address associated with this account" });
+    return;
+  }
+
+  try {
+    const reputation = await submitReputation({
+      attestationId,
+      accountAddress,
+      receiptPayers: [req.apiKeyOwner, req.smartWalletAddress].filter((value): value is string => Boolean(value)),
+      rating: rating as ReputationRating,
+      note,
+      artifactHash,
+    });
+    res.status(201).json({ reputation });
+  } catch (err: unknown) {
+    if (err instanceof ReputationError) {
+      const statusByCode: Record<ReputationError["code"], number> = {
+        NOT_FOUND: 404,
+        INVALID_ACCOUNT: 400,
+        INVALID_RATING: 400,
+        SELF_RATING: 400,
+        UNPURCHASED: 403,
+        DUPLICATE: 409,
+      };
+      res.status(statusByCode[err.code]).json({ error: err.message });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Failed to submit reputation", detail: message });
+  }
+});
+
+/**
+ * GET /attestations/:id/reputation
+ * Public aggregate reputation summary.
+ */
+attestationsRouter.get("/attestations/:id/reputation", async (req, res) => {
+  try {
+    const summary = await getReputationSummary(req.params.id as string);
+    res.status(200).json(summary);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Failed to get reputation", detail: message });
   }
 });
 
@@ -182,3 +248,9 @@ attestationsRouter.get("/search", authenticate, async (req, res) => {
     res.status(500).json({ error: "Search failed", detail: message });
   }
 });
+
+function resolveAuthenticatedAccount(req: { apiKeyOwner?: string; smartWalletAddress?: string | null }): string | null {
+  if (!req.apiKeyOwner) return null;
+  if (req.apiKeyOwner.startsWith("web:")) return req.smartWalletAddress ?? null;
+  return req.apiKeyOwner;
+}

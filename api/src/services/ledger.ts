@@ -9,6 +9,11 @@ export interface LedgerEntry {
   paymentMethod: string;
   txHash: string | null;
   receiptId: string | null;
+  creatorAddress?: string | null;
+  vaultAddress?: string | null;
+  vaultTxHash?: string | null;
+  vaultReceiptRef?: string | null;
+  claimableAmountUsdMicros?: number | null;
   createdAt?: string;
 }
 
@@ -23,8 +28,9 @@ export async function recordPayment(
   const queryFn = client ?? pool;
   await queryFn.query(
     `INSERT INTO payments_ledger
-       (attestation_id, payer, amount_usd_micros, payment_method, tx_hash, receipt_id)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+       (attestation_id, payer, amount_usd_micros, payment_method, tx_hash, receipt_id,
+        creator_address, vault_address, vault_tx_hash, vault_receipt_ref, claimable_amount_usd_micros)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       entry.attestationId,
       entry.payer.toLowerCase(),
@@ -32,6 +38,11 @@ export async function recordPayment(
       entry.paymentMethod,
       entry.txHash,
       entry.receiptId,
+      entry.creatorAddress?.toLowerCase() ?? null,
+      entry.vaultAddress?.toLowerCase() ?? null,
+      entry.vaultTxHash ?? entry.txHash,
+      entry.vaultReceiptRef ?? null,
+      entry.claimableAmountUsdMicros ?? null,
     ]
   );
 }
@@ -44,7 +55,8 @@ export async function getPaymentHistory(
 ): Promise<LedgerEntry[]> {
   const result = await pool.query(
     `SELECT id, attestation_id, payer, amount_usd_micros, payment_method,
-            tx_hash, receipt_id, created_at
+            tx_hash, receipt_id, creator_address, vault_address, vault_tx_hash,
+            vault_receipt_ref, claimable_amount_usd_micros, created_at
      FROM payments_ledger
      WHERE payer = $1
      ORDER BY created_at DESC
@@ -60,6 +72,13 @@ export async function getPaymentHistory(
     paymentMethod: row.payment_method,
     txHash: row.tx_hash,
     receiptId: row.receipt_id,
+    creatorAddress: row.creator_address,
+    vaultAddress: row.vault_address,
+    vaultTxHash: row.vault_tx_hash,
+    vaultReceiptRef: row.vault_receipt_ref,
+    claimableAmountUsdMicros: row.claimable_amount_usd_micros === null
+      ? null
+      : Number(row.claimable_amount_usd_micros),
     createdAt: row.created_at,
   }));
 }

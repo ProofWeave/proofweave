@@ -13,6 +13,11 @@ export interface AccessReceipt {
   paymentMethod: "smart-wallet";
   txHash: string | null;
   amountUsdMicros: number;
+  creatorAddress: string | null;
+  vaultAddress: string | null;
+  vaultTxHash: string | null;
+  vaultReceiptRef: string | null;
+  claimableAmountUsdMicros: number | null;
   hmac: string; // HMAC-SHA256 서명
   paidAt: string; // ISO 8601
   expiresAt: string | null;
@@ -45,6 +50,11 @@ export interface LedgerEntry {
   paymentMethod: string;
   txHash: string | null;
   receiptId: string;
+  creatorAddress?: string | null;
+  vaultAddress?: string | null;
+  vaultTxHash?: string | null;
+  vaultReceiptRef?: string | null;
+  claimableAmountUsdMicros?: number | null;
 }
 
 // ── Payment Quote (중복 결제 방지) ────────────────────────────

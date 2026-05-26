@@ -56,6 +56,9 @@ const envSchema = z.object({
   // Contract (배포된 Proxy 주소)
   PROXY_ADDRESS: hexAddress.default("0x758FE0a6B5d91C79B97b5F44508eA0CFA68A2e8E"),
 
+  // Vault-capable proxy address. Same-proxy deployments should set this equal to PROXY_ADDRESS.
+  VAULT_ADDRESS: hexAddress.optional(),
+
   // IPFS
   PINATA_JWT: z.string().min(1, "PINATA_JWT is required"),
   PINATA_GATEWAY: z.string().min(1, "PINATA_GATEWAY is required"),
@@ -96,4 +99,9 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+const parsedEnv = parsed.data;
+
+export const env = {
+  ...parsedEnv,
+  VAULT_ADDRESS: parsedEnv.VAULT_ADDRESS ?? parsedEnv.PROXY_ADDRESS,
+};

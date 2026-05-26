@@ -3,6 +3,7 @@ import cors from "cors";
 import { env } from "./config/env.js";
 import { runMigrations } from "./db/migrate.js";
 import { retryFailedMetadata } from "./services/metadata.js";
+import { startReconciliationScheduler } from "./services/vaultReconciliation.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { pricingRouter } from "./routes/pricing.js";
@@ -68,6 +69,9 @@ async function start() {
 
     // 서버 기동 후 실패한 메타데이터 재시도 (fire-and-forget)
     retryFailedMetadata().catch(() => {});
+
+    // 백그라운드 온체인 Vault 결제 화해 스케줄러 시작 (3분 주기)
+    startReconciliationScheduler();
   });
 }
 

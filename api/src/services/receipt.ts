@@ -5,6 +5,14 @@ import type { PoolClient } from "pg";
 import { env } from "../config/env.js";
 import type { AccessReceipt, ParsedReceipt } from "../types/payment.js";
 
+export interface ReceiptSettlementFields {
+  creatorAddress: string;
+  vaultAddress: string;
+  vaultTxHash: string;
+  vaultReceiptRef: string;
+  claimableAmountUsdMicros: number;
+}
+
 function getReceiptSecret(): string {
   if (!env.RECEIPT_SECRET) {
     throw new Error("RECEIPT_SECRET is required — set it in .env (openssl rand -hex 32)");
@@ -72,7 +80,8 @@ export async function issueReceipt(
   amountUsdMicros: number,
   txHash?: string,
   expiresAt?: Date,
-  client?: PoolClient
+  client?: PoolClient,
+  settlement?: ReceiptSettlementFields
 ): Promise<AccessReceipt> {
   const receiptId = uuidv7();
   const hmac = signReceipt(receiptId, attestationId, payer);
@@ -81,8 +90,10 @@ export async function issueReceipt(
   const queryFn = client ?? pool;
   await queryFn.query(
     `INSERT INTO access_receipts
-       (receipt_id, attestation_id, payer, payment_method, tx_hash, amount_usd_micros, hmac, paid_at, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       (receipt_id, attestation_id, payer, payment_method, tx_hash, amount_usd_micros,
+        creator_address, vault_address, vault_tx_hash, vault_receipt_ref, claimable_amount_usd_micros,
+        hmac, paid_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       receiptId,
       attestationId,
@@ -90,6 +101,11 @@ export async function issueReceipt(
       paymentMethod,
       txHash ?? null,
       amountUsdMicros,
+      settlement?.creatorAddress.toLowerCase() ?? null,
+      settlement?.vaultAddress.toLowerCase() ?? null,
+      settlement?.vaultTxHash ?? txHash ?? null,
+      settlement?.vaultReceiptRef ?? null,
+      settlement?.claimableAmountUsdMicros ?? null,
       hmac,
       paidAt,
       expiresAt?.toISOString() ?? null,
@@ -103,6 +119,11 @@ export async function issueReceipt(
     paymentMethod,
     txHash: txHash ?? null,
     amountUsdMicros,
+    creatorAddress: settlement?.creatorAddress.toLowerCase() ?? null,
+    vaultAddress: settlement?.vaultAddress.toLowerCase() ?? null,
+    vaultTxHash: settlement?.vaultTxHash ?? txHash ?? null,
+    vaultReceiptRef: settlement?.vaultReceiptRef ?? null,
+    claimableAmountUsdMicros: settlement?.claimableAmountUsdMicros ?? null,
     hmac,
     paidAt,
     expiresAt: expiresAt?.toISOString() ?? null,
@@ -147,7 +168,8 @@ export async function hasValidReceipt(
 ): Promise<AccessReceipt | null> {
   const result = await pool.query(
     `SELECT receipt_id, attestation_id, payer, payment_method, tx_hash,
-            amount_usd_micros, hmac, paid_at, expires_at
+            amount_usd_micros, creator_address, vault_address, vault_tx_hash,
+            vault_receipt_ref, claimable_amount_usd_micros, hmac, paid_at, expires_at
      FROM access_receipts
      WHERE payer = $1
        AND attestation_id = $2
@@ -166,6 +188,13 @@ export async function hasValidReceipt(
     paymentMethod: row.payment_method,
     txHash: row.tx_hash,
     amountUsdMicros: Number(row.amount_usd_micros),
+    creatorAddress: row.creator_address,
+    vaultAddress: row.vault_address,
+    vaultTxHash: row.vault_tx_hash,
+    vaultReceiptRef: row.vault_receipt_ref,
+    claimableAmountUsdMicros: row.claimable_amount_usd_micros === null
+      ? null
+      : Number(row.claimable_amount_usd_micros),
     hmac: row.hmac,
     paidAt: row.paid_at,
     expiresAt: row.expires_at,

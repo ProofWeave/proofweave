@@ -22,7 +22,9 @@ vi.mock("../config/env.js", () => ({
   env: {
     NODE_ENV: "development",
     CDP_API_KEY_ID: undefined,
-    RECEIPT_SECRET: undefined,
+    RECEIPT_SECRET: "test-receipt-secret-32-characters",
+    PROXY_ADDRESS: "0x0000000000000000000000000000000000000001",
+    VAULT_ADDRESS: "0x0000000000000000000000000000000000000002",
   },
 }));
 
@@ -33,6 +35,7 @@ vi.mock("../config/chain.js", () => ({
 vi.mock("../services/wallet.js", () => ({
   getSmartWalletAddress: vi.fn().mockResolvedValue(null),
   getWalletBalance: vi.fn().mockResolvedValue({ balanceUsdMicros: 0 }),
+  depositUsdcToVaultFromSmartWallet: vi.fn().mockResolvedValue("dev-vault-tx-123"),
   transferUsdcFromSmartWallet: vi.fn().mockResolvedValue("dev-tx-123"),
 }));
 
@@ -103,7 +106,7 @@ describe("x402Gate (Phase 2-4)", () => {
           receipt_id: "existing-receipt",
           attestation_id: "test-attest-001",
           payer: "0xpayer123",
-          payment_method: "x402",
+          payment_method: "smart-wallet",
           tx_hash: null,
           amount_usd_micros: 50000,
           hmac: "existing-hmac",
