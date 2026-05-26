@@ -1,0 +1,25 @@
+{
+  "name": "proofweave",
+  "version": "0.1.0",
+  "description": "ProofWeave Claude Code hook harness and artifact CLI",
+  "type": "module",
+  "bin": {
+    "proofweave": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "hooks",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "typescript": "^6.0.2"
+  }
+}
