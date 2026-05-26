@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title AttestationRegistry
@@ -15,6 +17,8 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  *      - owner: 프로젝트 관리자 (upgrade, operator 변경)
  */
 contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+    using SafeERC20 for IERC20;
+
     // ============================================================
     //                         STRUCTS
     // ============================================================
@@ -44,6 +48,18 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     /// @notice API 서버 지갑 주소 (attest 전용)
     address public operator;
 
+    /// @notice USDC token held by the creator-claim vault. Appended for UUPS storage safety.
+    IERC20 public usdc;
+
+    /// @notice creator → claimable USDC amount
+    mapping(address => uint256) private _claimable;
+
+    /// @notice replay-safe payment reference → credited flag
+    mapping(bytes32 => bool) private _receiptCredited;
+
+    /// @dev Manual reentrancy guard storage, appended after existing Phase 1 storage.
+    uint256 private _vaultEntered;
+
     // ============================================================
     //                         EVENTS
     // ============================================================
@@ -59,6 +75,16 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
 
     event OperatorUpdated(address indexed oldOperator, address indexed newOperator);
 
+    event VaultInitialized(address indexed usdcToken);
+    event VaultDeposited(
+        bytes32 indexed receiptRef,
+        bytes32 indexed attestationId,
+        address indexed creator,
+        address payer,
+        uint256 amount
+    );
+    event CreatorClaimed(address indexed creator, address indexed to, uint256 amount);
+
     // ============================================================
     //                         ERRORS
     // ============================================================
@@ -70,6 +96,13 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     error EmptyOffchainRef();
     error Unauthorized();
     error ZeroAddress();
+    error VaultNotInitialized();
+    error ZeroAmount();
+    error EmptyReceiptRef();
+    error ReceiptAlreadyCredited(bytes32 receiptRef);
+    error CreatorMismatch(address expected, address actual);
+    error InsufficientClaimable(address creator, uint256 available, uint256 requested);
+    error ReentrantCall();
 
     // ============================================================
     //                        MODIFIERS
@@ -78,6 +111,13 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     modifier onlyOperator() {
         if (msg.sender != operator) revert Unauthorized();
         _;
+    }
+
+    modifier nonReentrantVault() {
+        if (_vaultEntered == 1) revert ReentrantCall();
+        _vaultEntered = 1;
+        _;
+        _vaultEntered = 0;
     }
 
     // ============================================================
@@ -102,6 +142,13 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
         operator = initialOperator;
     }
 
+    /// @notice Initializes vault settlement after upgrading an existing proxy to the vault-aware implementation.
+    function initializeVault(address usdcToken) external onlyOwner reinitializer(2) {
+        if (usdcToken == address(0)) revert ZeroAddress();
+        usdc = IERC20(usdcToken);
+        emit VaultInitialized(usdcToken);
+    }
+
     // ============================================================
     //                    UPGRADE AUTHORIZATION
     // ============================================================
@@ -124,6 +171,61 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     /// @dev owner를 소유권 포기 삭제 / 향후 권한 MPC로 분류해서 운영해볼까 고려중..
     function renounceOwnership() public pure override {
         revert Unauthorized();
+    }
+
+    // ============================================================
+    //                    CREATOR VAULT SETTLEMENT
+    // ============================================================
+
+    /// @notice Deposits USDC into the vault and credits the onchain attestation creator.
+    /// @dev The backend passes creator from pricing_policies, which is only set after DB-level
+    ///      attestation creator verification. This function also checks the onchain attestation
+    ///      creator so a stale or tampered backend row cannot credit a different address.
+    function depositForAttestation(bytes32 attestationId, address creator, uint256 amount, bytes32 receiptRef)
+        external
+        nonReentrantVault
+    {
+        IERC20 token = usdc;
+        if (address(token) == address(0)) revert VaultNotInitialized();
+        if (creator == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (receiptRef == bytes32(0)) revert EmptyReceiptRef();
+        if (_receiptCredited[receiptRef]) revert ReceiptAlreadyCredited(receiptRef);
+
+        Attestation storage att = _attestations[attestationId];
+        if (att.creator == address(0)) revert AttestationNotFound();
+        if (att.creator != creator) revert CreatorMismatch(att.creator, creator);
+
+        _receiptCredited[receiptRef] = true;
+        _claimable[creator] += amount;
+
+        token.safeTransferFrom(msg.sender, address(this), amount);
+
+        emit VaultDeposited(receiptRef, attestationId, creator, msg.sender, amount);
+    }
+
+    /// @notice Claims USDC credited to msg.sender as an attestation creator.
+    function claimCreatorBalance(uint256 amount, address to) external nonReentrantVault {
+        IERC20 token = usdc;
+        if (address(token) == address(0)) revert VaultNotInitialized();
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 available = _claimable[msg.sender];
+        if (amount > available) revert InsufficientClaimable(msg.sender, available, amount);
+
+        _claimable[msg.sender] = available - amount;
+        token.safeTransfer(to, amount);
+
+        emit CreatorClaimed(msg.sender, to, amount);
+    }
+
+    function claimableBalance(address creator) external view returns (uint256) {
+        return _claimable[creator];
+    }
+
+    function isReceiptCredited(bytes32 receiptRef) external view returns (bool) {
+        return _receiptCredited[receiptRef];
     }
 
     /// @notice AI 데이터 출처 등록 (API 서버만 호출 가능)
@@ -199,7 +301,6 @@ contract AttestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeab
     // ============================================================
     //                    DESIGN NOTE
     // ============================================================
-    // 결제는 x402 프로토콜(HTTP 402) + ProofWeave Access Layer에서 처리.
-    // 이 컨트랙트는 AI 생성물의 출처 기록(attestation) 전용.
-    // See: 참조/payment_architecture.md
+    // x402 payment orchestration remains in the API, but paid smart-wallet access
+    // now settles into this vault before the API issues an AccessReceipt.
 }
