@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   wallet_address TEXT NOT NULL,
   smart_wallet_address TEXT,
+  eoa_address TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   revoked_at TIMESTAMPTZ
 );
@@ -58,6 +59,11 @@ CREATE TABLE IF NOT EXISTS api_keys (
 -- Phase 2-4: smart_wallet_address 컬럼 추가 (이미 있으면 무시)
 DO $$ BEGIN
   ALTER TABLE api_keys ADD COLUMN smart_wallet_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE api_keys ADD COLUMN eoa_address TEXT;
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
@@ -80,6 +86,11 @@ CREATE TABLE IF NOT EXISTS access_receipts (
   payment_method TEXT NOT NULL CHECK (payment_method IN ('smart-wallet')),
   tx_hash TEXT,
   amount_usd_micros BIGINT NOT NULL,
+  creator_address TEXT,
+  vault_address TEXT,
+  vault_tx_hash TEXT,
+  vault_receipt_ref TEXT,
+  claimable_amount_usd_micros BIGINT,
   hmac TEXT NOT NULL DEFAULT '',
   paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ
@@ -91,8 +102,35 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN creator_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN vault_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN vault_tx_hash TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN vault_receipt_ref TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE access_receipts ADD COLUMN claimable_amount_usd_micros BIGINT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_receipts_payer ON access_receipts(payer);
 CREATE INDEX IF NOT EXISTS idx_receipts_attestation ON access_receipts(attestation_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_vault_receipt_ref
+  ON access_receipts (vault_receipt_ref) WHERE vault_receipt_ref IS NOT NULL;
 
 -- 가격 정책 (Phase 2-3)
 CREATE TABLE IF NOT EXISTS pricing_policies (
@@ -114,14 +152,68 @@ CREATE TABLE IF NOT EXISTS payments_ledger (
   payment_method TEXT NOT NULL,
   tx_hash TEXT,
   receipt_id UUID REFERENCES access_receipts(receipt_id) ON DELETE SET NULL,
+  creator_address TEXT,
+  vault_address TEXT,
+  vault_tx_hash TEXT,
+  vault_receipt_ref TEXT,
+  claimable_amount_usd_micros BIGINT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+DO $$ BEGIN
+  ALTER TABLE payments_ledger ADD COLUMN creator_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE payments_ledger ADD COLUMN vault_address TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE payments_ledger ADD COLUMN vault_tx_hash TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE payments_ledger ADD COLUMN vault_receipt_ref TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE payments_ledger ADD COLUMN claimable_amount_usd_micros BIGINT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_ledger_payer ON payments_ledger(payer);
 CREATE INDEX IF NOT EXISTS idx_ledger_attestation ON payments_ledger(attestation_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_creator ON payments_ledger(creator_address);
 -- txHash 기반 idempotency 검색용
 CREATE INDEX IF NOT EXISTS idx_payments_ledger_tx_hash
   ON payments_ledger (tx_hash) WHERE tx_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_ledger_vault_receipt_ref
+  ON payments_ledger (vault_receipt_ref) WHERE vault_receipt_ref IS NOT NULL;
+
+-- Account-based artifact reputation logs (ProofWeave V1, not EIP-8004)
+CREATE TABLE IF NOT EXISTS artifact_reputation_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  attestation_id TEXT NOT NULL,
+  account_address TEXT NOT NULL,
+  receipt_id UUID REFERENCES access_receipts(receipt_id) ON DELETE SET NULL,
+  rating TEXT NOT NULL CHECK (rating IN ('useful', 'not_useful')),
+  note TEXT,
+  artifact_hash TEXT,
+  trust_tier TEXT NOT NULL DEFAULT 'unverified' CHECK (trust_tier IN ('verified', 'unverified')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reputation_unique_account_attestation
+  ON artifact_reputation_logs (attestation_id, account_address);
+CREATE INDEX IF NOT EXISTS idx_reputation_attestation_trust
+  ON artifact_reputation_logs (attestation_id, trust_tier);
+CREATE INDEX IF NOT EXISTS idx_reputation_receipt
+  ON artifact_reputation_logs (receipt_id) WHERE receipt_id IS NOT NULL;
 
 -- 결제 견적 — 중복 결제 방지 (Phase 2-4)
 CREATE TABLE IF NOT EXISTS payment_quotes (
