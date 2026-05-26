@@ -12,7 +12,7 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 export PATH="/opt/homebrew/bin:/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 
-PROJECT_ID="proofweave"
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "proofweave")
 REGION="asia-northeast3"
 IMAGE="asia-northeast3-docker.pkg.dev/$PROJECT_ID/proofweave/api:latest"
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -36,9 +36,15 @@ deploy_api() {
   ok "이미지 빌드 + 푸시 완료"
 
   log "2/3 Cloud Run 업데이트..."
+  ENV_VARS=$(node "$ROOT_DIR/api/scripts/export-run-env.js" || echo "")
+  if [ -z "$ENV_VARS" ]; then
+    fail "환경 변수 로드 실패"
+  fi
+
   gcloud run services update proofweave-api \
     --region "$REGION" \
     --image "$IMAGE" \
+    --set-env-vars "$ENV_VARS" \
     --quiet || fail "Cloud Run 업데이트 실패"
   ok "Cloud Run 배포 완료"
 
