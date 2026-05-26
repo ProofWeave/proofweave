@@ -1,0 +1,19 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "proxyAddress": "0x758FE0a6B5d91C79B97b5F44508eA0CFA68A2e8E",
+  "vaultAddress": "0x758FE0a6B5d91C79B97b5F44508eA0CFA68A2e8E",
+  "implementationAddress": "0x11c86A6f5110727Bf9A8a19aE4F09C24141438C5",
+  "usdcAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "owner": "0x0df5Ea611e4868A42D600Aa2F552f72d7612f53c",
+  "transactions": {
+    "implementationCreate": "0xfa8abf4bccd6a9e563afb6579fd6ddd0087de1f11f1c7a5bed624f73efa8e07d",
+    "upgradeToAndCall": "0xe68dab4b4520e42e2a03461645ab70592852b883746bae58ddc7787c5b5a1a72"
+  },
+  "verifiedReads": {
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "implementationSlot": "0x00000000000000000000000011c86a6f5110727bf9a8a19ae4f09c24141438c5",
+    "owner": "0x0df5Ea611e4868A42D600Aa2F552f72d7612f53c",
+    "ownerClaimableBalance": "0"
+  }
+}
