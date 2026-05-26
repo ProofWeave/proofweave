@@ -4,7 +4,8 @@ import {
   Globe, Cpu, ExternalLink, FileText, Code, Tag,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
-import { api, PaymentRequiredError } from '../lib/api';
+import { api, ApiError, PaymentRequiredError } from '../lib/api';
+import { getReceipt } from '../lib/receiptStore';
 import { useModalKeyboard, useModalRef } from '../hooks/useModalKeyboard';
 import type { AttestationWithMetadata } from './AttestationCard';
 
@@ -30,7 +31,32 @@ interface DetailData {
   contentHash?: string;
   creator?: string;
   aiModel?: string;
-  receipt?: { receiptId: string };
+  txHash?: string;
+}
+
+interface ReputationSummary {
+  attestationId: string;
+  verifiedUsefulRatio: number | null;
+  verifiedSampleSize: number;
+  unverifiedUsefulRatio: number | null;
+  unverifiedSampleSize: number;
+  earlyEvaluationStage: boolean;
+}
+
+interface ReputationLog {
+  id: string;
+  attestationId: string;
+  accountAddress: string;
+  receiptId: string | null;
+  rating: 'useful' | 'not_useful';
+  note: string | null;
+  artifactHash: string | null;
+  trustTier: 'verified' | 'unverified';
+  createdAt: string;
+}
+
+interface ReputationSubmissionResponse {
+  reputation: ReputationLog;
 }
 
 type ModalState =
@@ -63,9 +89,19 @@ export function AttestationPurchaseModal({
 }: AttestationPurchaseModalProps) {
   const [state, setState] = useState<ModalState>({ step: 'loading' });
   const [copied, setCopied] = useState(false);
+  const [receiptCopied, setReceiptCopied] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
   const [dataViewMode, setDataViewMode] = useState<DataViewMode>('markdown');
   const [pricingCache, setPricingCache] = useState<PricingInfo | null>(null);
+  const [accessReceipt, setAccessReceipt] = useState<string | null>(null);
+  const [reputationSummary, setReputationSummary] = useState<ReputationSummary | null>(null);
+  const [reputationSummaryLoading, setReputationSummaryLoading] = useState(false);
+  const [reputationRating, setReputationRating] = useState<'useful' | 'not_useful' | null>(null);
+  const [reputationNote, setReputationNote] = useState('');
+  const [reputationArtifactHash, setReputationArtifactHash] = useState('');
+  const [reputationSubmitting, setReputationSubmitting] = useState(false);
+  const [reputationFeedback, setReputationFeedback] = useState<{ kind: 'error' | 'success' | 'info'; message: string } | null>(null);
+  const [submittedReputation, setSubmittedReputation] = useState<ReputationLog | null>(null);
 
   const modalRef = useModalRef();
   useModalKeyboard({ open, onClose, containerRef: modalRef });
@@ -73,16 +109,107 @@ export function AttestationPurchaseModal({
   const meta = attestation?.metadata;
   const hasMetadata = meta?.metadataStatus === 'ready' && meta?.title;
 
+  const formatRatio = (ratio: number | null) => {
+    if (ratio === null) return '—';
+    return `${Math.round(ratio * 100)}%`;
+  };
+
+  const formatReceipt = (value: string | null) => {
+    if (!value) return '—';
+    return value.length > 18 ? `${value.slice(0, 10)}…${value.slice(-6)}` : value;
+  };
+
+  const settlementStage = state.step === 'success'
+    ? 3
+    : state.step === 'purchasing'
+      ? 1
+      : state.step === 'pricing'
+        ? 0
+        : -1;
+
+  const loadReputationSummary = useCallback(async (id: string) => {
+    setReputationSummaryLoading(true);
+    try {
+      const summary = await api.get<ReputationSummary>(`/attestations/${id}/reputation`);
+      setReputationSummary(summary);
+    } catch {
+      setReputationSummary(null);
+    } finally {
+      setReputationSummaryLoading(false);
+    }
+  }, []);
+
+  const hydrateSuccessState = useCallback((id: string, data: DetailData) => {
+    setState({ step: 'success', data });
+    setAccessReceipt(getReceipt(id));
+    setReputationArtifactHash((prev) => prev || data.contentHash || attestation?.contentHash || '');
+    void loadReputationSummary(id);
+  }, [attestation?.contentHash, loadReputationSummary]);
+
+  const submitReputation = useCallback(async () => {
+    if (!attestationId || !reputationRating) return;
+
+    setReputationSubmitting(true);
+    setReputationFeedback(null);
+
+    try {
+      const payload = {
+        rating: reputationRating,
+        note: reputationNote.trim() || undefined,
+        artifactHash: reputationArtifactHash.trim() || undefined,
+      };
+      const res = await api.post<ReputationSubmissionResponse>(`/attestations/${attestationId}/reputation`, payload);
+      setSubmittedReputation(res.reputation);
+      setReputationFeedback({
+        kind: 'success',
+        message: res.reputation.trustTier === 'verified'
+          ? '평가가 저장되고 receipt로 검증되었습니다.'
+          : '평가가 저장되었습니다.',
+      });
+      void loadReputationSummary(attestationId);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const messageByStatus: Record<number, string> = {
+          400: '평가 내용을 확인해 주세요.',
+          403: '구매 후에만 평가할 수 있습니다.',
+          409: '이미 평가했습니다.',
+        };
+        setReputationFeedback({
+          kind: 'error',
+          message: messageByStatus[err.status] || err.message,
+        });
+      } else {
+        setReputationFeedback({
+          kind: 'error',
+          message: err instanceof Error ? err.message : '평가 제출에 실패했습니다.',
+        });
+      }
+    } finally {
+      setReputationSubmitting(false);
+    }
+  }, [attestationId, loadReputationSummary, reputationArtifactHash, reputationNote, reputationRating]);
+
   useEffect(() => {
     if (!open || !attestationId) return;
     setDataViewMode('markdown');
     setCopied(false);
+    setReceiptCopied(false);
+    setWalletCopied(false);
+    setAccessReceipt(null);
+    setReputationSummary(null);
+    setReputationSummaryLoading(false);
+    setReputationRating(null);
+    setReputationNote('');
+    setReputationArtifactHash('');
+    setReputationSubmitting(false);
+    setReputationFeedback(null);
+    setSubmittedReputation(null);
 
     if (alreadyPurchased) {
       // 이미 구매 → 바로 detail 호출
       setState({ step: 'purchasing' });
       api.get<DetailData>(`/attestations/${attestationId}/detail`)
-        .then((data) => setState({ step: 'success', data }))
+        .then((data) => hydrateSuccessState(attestationId, data))
         .catch((err) => {
           if (err instanceof PaymentRequiredError) {
             fetchPricing(attestationId);
@@ -95,7 +222,7 @@ export function AttestationPurchaseModal({
       setState({ step: 'preview' });
       fetchPricingBackground(attestationId);
     }
-  }, [open, attestationId, alreadyPurchased]);
+  }, [alreadyPurchased, attestationId, hydrateSuccessState, open]);
 
   const fetchPricingBackground = (id: string) => {
     api
@@ -133,21 +260,13 @@ export function AttestationPurchaseModal({
       });
   };
 
-  const handleViewDetail = useCallback(() => {
-    if (pricingCache && pricingCache.amountUsdMicros > 0) {
-      setState({ step: 'pricing', price: pricingCache, isFree: false });
-    } else {
-      handlePurchase();
-    }
-  }, [pricingCache, attestationId]);
-
   const handlePurchase = useCallback(async () => {
     if (!attestationId) return;
     setState({ step: 'purchasing' });
 
     try {
       const data = await api.get<DetailData>(`/attestations/${attestationId}/detail`);
-      setState({ step: 'success', data });
+      hydrateSuccessState(attestationId, data);
     } catch (err) {
       if (err instanceof PaymentRequiredError) {
         setState({ step: 'insufficient', error: err });
@@ -156,7 +275,15 @@ export function AttestationPurchaseModal({
         setState({ step: 'error', message: msg });
       }
     }
-  }, [attestationId]);
+  }, [attestationId, hydrateSuccessState]);
+
+  const handleViewDetail = useCallback(() => {
+    if (pricingCache && pricingCache.amountUsdMicros > 0) {
+      setState({ step: 'pricing', price: pricingCache, isFree: false });
+    } else {
+      handlePurchase();
+    }
+  }, [handlePurchase, pricingCache]);
 
   const copyData = useCallback((data: unknown) => {
     navigator.clipboard.writeText(
@@ -170,6 +297,12 @@ export function AttestationPurchaseModal({
     navigator.clipboard.writeText(address);
     setWalletCopied(true);
     setTimeout(() => setWalletCopied(false), 2000);
+  }, []);
+
+  const copyReceipt = useCallback((receipt: string) => {
+    navigator.clipboard.writeText(receipt);
+    setReceiptCopied(true);
+    setTimeout(() => setReceiptCopied(false), 2000);
   }, []);
 
   /** 데이터를 markdown 문자열로 변환 */
@@ -206,6 +339,38 @@ export function AttestationPurchaseModal({
     hash.length > 14 ? `${hash.slice(0, 8)}…${hash.slice(-6)}` : hash;
 
   const isFree = pricingCache ? pricingCache.amountUsdMicros === 0 : true;
+  const settlementSteps = [
+    {
+      label: 'Initiated',
+      detail: '조회 요청을 시작합니다.',
+    },
+    {
+      label: 'UserOp signed',
+      detail: '결제 서명과 지갑 승인을 처리합니다.',
+    },
+    {
+      label: 'Onchain confirmed',
+      detail: '체인 상 결제가 확인됩니다.',
+    },
+    {
+      label: 'API reconciled',
+      detail: '상세 데이터가 해제됩니다.',
+    },
+  ];
+
+  const effectiveTxHash = state.step === 'success'
+    ? (state.data.txHash || attestation?.txHash)
+    : attestation?.txHash;
+
+  const activeReceipt = accessReceipt;
+
+  const currentSettlementLabel = settlementStage === 3
+    ? '정산 완료'
+    : settlementStage === 1
+      ? '처리 중'
+      : settlementStage === 0
+        ? '대기'
+        : '미진행';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -332,6 +497,29 @@ export function AttestationPurchaseModal({
         {/* ── Pricing confirmation (paid) ── */}
         {state.step === 'pricing' && (
           <div style={{ padding: '20px 0' }}>
+            <div className="detail-settlement mb-16">
+              <div className="detail-settlement__header">
+                <div>
+                  <div className="detail-settlement__eyebrow">Settlement rail</div>
+                  <div className="detail-settlement__title">결제 상태 · {currentSettlementLabel}</div>
+                </div>
+                <div className="detail-settlement__note">x402 흐름을 단계별로 보여줍니다.</div>
+              </div>
+              <div className="detail-settlement__steps">
+                {settlementSteps.map((step, index) => {
+                  const status = index < settlementStage ? 'done' : index === settlementStage ? 'active' : 'pending';
+                  return (
+                    <div key={step.label} className={`detail-settlement__step detail-settlement__step--${status}`}>
+                      <div className="detail-settlement__step-index">{index + 1}</div>
+                      <div className="detail-settlement__step-body">
+                        <div className="detail-settlement__step-label">{step.label}</div>
+                        <div className="detail-settlement__step-detail">{step.detail}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             <div className="card mb-16" style={{ padding: 16, textAlign: 'center' }}>
               <DollarSign size={24} style={{ color: 'var(--accent-purple)' }} />
               <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: 8 }}>
@@ -351,11 +539,36 @@ export function AttestationPurchaseModal({
 
         {/* ── Purchasing spinner ── */}
         {state.step === 'purchasing' && (
-          <div className="flex items-center justify-center" style={{ padding: 40 }}>
-            <Loader size={20} className="spin" />
-            <span className="text-muted ml-8">
-              {alreadyPurchased ? '데이터 불러오는 중...' : '조회 및 결제 처리 중...'}
-            </span>
+          <div style={{ padding: '20px 0' }}>
+            <div className="detail-settlement mb-16">
+              <div className="detail-settlement__header">
+                <div>
+                  <div className="detail-settlement__eyebrow">Settlement rail</div>
+                  <div className="detail-settlement__title">결제 상태 · {currentSettlementLabel}</div>
+                </div>
+                <div className="detail-settlement__note">백엔드가 동기식으로 처리해도 단계는 그대로 노출됩니다.</div>
+              </div>
+              <div className="detail-settlement__steps">
+                {settlementSteps.map((step, index) => {
+                  const status = index < settlementStage ? 'done' : index === settlementStage ? 'active' : 'pending';
+                  return (
+                    <div key={step.label} className={`detail-settlement__step detail-settlement__step--${status}`}>
+                      <div className="detail-settlement__step-index">{index + 1}</div>
+                      <div className="detail-settlement__step-body">
+                        <div className="detail-settlement__step-label">{step.label}</div>
+                        <div className="detail-settlement__step-detail">{step.detail}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-center" style={{ padding: 24 }}>
+              <Loader size={20} className="spin" />
+              <span className="text-muted ml-8">
+                {alreadyPurchased ? '데이터 불러오는 중...' : '조회 및 결제 처리 중...'}
+              </span>
+            </div>
           </div>
         )}
 
@@ -387,11 +600,155 @@ export function AttestationPurchaseModal({
               </div>
             </div>
 
-            {state.data.receipt && (
-              <div className="text-xs text-muted" style={{ marginBottom: 8 }}>
-                Receipt: {state.data.receipt.receiptId}
+            <div className="detail-settlement mb-16">
+              <div className="detail-settlement__header">
+                <div>
+                  <div className="detail-settlement__eyebrow">Settlement rail</div>
+                  <div className="detail-settlement__title">정산 완료 · {currentSettlementLabel}</div>
+                </div>
+                <div className="detail-settlement__note">요청, 체인 확인, API 반영이 모두 끝났습니다.</div>
               </div>
-            )}
+              <div className="detail-settlement__steps">
+                {settlementSteps.map((step, index) => (
+                  <div key={step.label} className="detail-settlement__step detail-settlement__step--done">
+                    <div className="detail-settlement__step-index">{index + 1}</div>
+                    <div className="detail-settlement__step-body">
+                      <div className="detail-settlement__step-label">{step.label}</div>
+                      <div className="detail-settlement__step-detail">{step.detail}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="detail-data__receipt-row">
+              <div className="detail-data__receipt-copy">
+                <span className="detail-data__receipt-label">Stored receipt</span>
+                <code className="detail-data__receipt-value">{formatReceipt(activeReceipt)}</code>
+              </div>
+              {activeReceipt && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => copyReceipt(activeReceipt)}
+                >
+                  {receiptCopied ? <Check size={13} /> : <Copy size={13} />}
+                  {receiptCopied ? '복사됨' : '복사'}
+                </button>
+              )}
+              {effectiveTxHash && (
+                <a
+                  href={`https://sepolia.basescan.org/tx/${effectiveTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-sm"
+                >
+                  <ExternalLink size={13} /> Basescan
+                </a>
+              )}
+            </div>
+
+            <div className="detail-reputation">
+              <div className="detail-reputation__header">
+                <div>
+                  <div className="detail-reputation__eyebrow">Reputation</div>
+                  <div className="detail-reputation__title">커뮤니티 평가</div>
+                </div>
+                <div className="detail-reputation__meta">
+                  {reputationSummaryLoading ? '불러오는 중…' : '공개 집계 + 제출 폼'}
+                </div>
+              </div>
+
+              {reputationSummary && (
+                <div className="detail-reputation__summary">
+                  <div className="detail-reputation__stat">
+                    <span className="detail-reputation__stat-label">Verified useful</span>
+                    <span className="detail-reputation__stat-value">{formatRatio(reputationSummary.verifiedUsefulRatio)}</span>
+                    <span className="detail-reputation__stat-footnote">
+                      {reputationSummary.verifiedSampleSize} samples
+                    </span>
+                  </div>
+                  <div className="detail-reputation__stat">
+                    <span className="detail-reputation__stat-label">Unverified useful</span>
+                    <span className="detail-reputation__stat-value">{formatRatio(reputationSummary.unverifiedUsefulRatio)}</span>
+                    <span className="detail-reputation__stat-footnote">
+                      {reputationSummary.unverifiedSampleSize} samples
+                    </span>
+                  </div>
+                  <div className="detail-reputation__stat detail-reputation__stat--flag">
+                    <span className="detail-reputation__stat-label">Stage</span>
+                    <span className="detail-reputation__stat-value">
+                      {reputationSummary.earlyEvaluationStage ? 'Early' : 'Stable'}
+                    </span>
+                    <span className="detail-reputation__stat-footnote">
+                      {reputationSummary.earlyEvaluationStage ? '평가 데이터가 아직 적습니다.' : '평가가 충분히 쌓였습니다.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="detail-reputation__form">
+                <div className="detail-reputation__rating-row">
+                  <button
+                    className={`detail-reputation__pill ${reputationRating === 'useful' ? 'active' : ''}`}
+                    onClick={() => setReputationRating('useful')}
+                    disabled={reputationSubmitting}
+                  >
+                    useful
+                  </button>
+                  <button
+                    className={`detail-reputation__pill ${reputationRating === 'not_useful' ? 'active' : ''}`}
+                    onClick={() => setReputationRating('not_useful')}
+                    disabled={reputationSubmitting}
+                  >
+                    not_useful
+                  </button>
+                </div>
+
+                <textarea
+                  className="detail-reputation__textarea"
+                  value={reputationNote}
+                  onChange={(e) => setReputationNote(e.target.value)}
+                  placeholder="짧은 메모 (선택)"
+                  maxLength={280}
+                  disabled={reputationSubmitting}
+                />
+
+                <input
+                  className="detail-reputation__input"
+                  value={reputationArtifactHash}
+                  onChange={(e) => setReputationArtifactHash(e.target.value)}
+                  placeholder="artifact hash (선택)"
+                  disabled={reputationSubmitting}
+                />
+
+                <button
+                  className="btn btn-primary"
+                  onClick={submitReputation}
+                  disabled={!reputationRating || reputationSubmitting}
+                >
+                  {reputationSubmitting ? <Loader size={14} className="spin" /> : <Check size={14} />}
+                  평가 제출
+                </button>
+              </div>
+
+              {reputationFeedback && (
+                <p className={`detail-reputation__message detail-reputation__message--${reputationFeedback.kind}`}>
+                  {reputationFeedback.message}
+                </p>
+              )}
+
+              {submittedReputation && (
+                <div className="detail-reputation__submitted">
+                  <div className="detail-reputation__submitted-line">
+                    <span className="detail-reputation__submitted-rating">{submittedReputation.rating}</span>
+                    <span className="detail-reputation__submitted-tier">{submittedReputation.trustTier}</span>
+                  </div>
+                  <div className="detail-reputation__submitted-meta">
+                    Receipt {formatReceipt(submittedReputation.receiptId)}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="detail-data__content">
               {dataViewMode === 'markdown' ? (
