@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-06-01",
+  "basis": "OpenCode observed usage where available; Claude offline CTT proxy only",
+  "models": [
+    {
+      "label": "claude-opus-4.8",
+      "name": "Claude Opus 4.8",
+      "status": "complete",
+      "usageSource": "offline_ctt",
+      "providerBillingClaim": false,
+      "smokeQueryIds": [
+        "bq_full_001",
+        "bq_full_007",
+        "bq_full_013",
+        "bq_full_025",
+        "bq_full_040"
+      ],
+      "pairCount": 5,
+      "savingEligiblePairs": 4,
+      "noMatchPairs": 1,
+      "qualityFailures": 0,
+      "meanInputReductionEligible": 0.669216587851478,
+      "meanTotalReductionEligible": 0.6366728756583986,
+      "aggregateInputReductionEligible": 0.6691625069328897,
+      "aggregateTotalReductionEligible": 0.6363847045191193,
+      "totalsEligible": {
+        "rawInput": 3606,
+        "proofweaveInput": 1193,
+        "rawOutput": 709,
+        "proofweaveOutput": 376,
+        "rawReasoning": null,
+        "proofweaveReasoning": null,
+        "rawCacheRead": null,
+        "proofweaveCacheRead": null,
+        "rawTotal": 4315,
+        "proofweaveTotal": 1569,
+        "rawCost": null,
+        "proofweaveCost": null
+      },
+      "totalsAllRows": {
+        "rawInput": 3660,
+        "proofweaveInput": 1255,
+        "rawOutput": 797,
+        "proofweaveOutput": 439,
+        "rawReasoning": null,
+        "proofweaveReasoning": null,
+        "rawCacheRead": null,
+        "proofweaveCacheRead": null,
+        "rawTotal": 4457,
+        "proofweaveTotal": 1694
+      },
+      "outputDir": "/tmp/proofweave-live-benchmark-claude-opus-4.8/smoke"
+    },
+    {
+      "label": "gpt-5.5-fast-high",
+      "name": "GPT-5.5 Fast High",
+      "status": "complete",
+      "usageSource": "opencode_request_usage",
+      "providerBillingClaim": false,
+      "smokeQueryIds": [
+        "bq_full_013",
+        "bq_full_019",
+        "bq_full_025",
+        "bq_full_031",
+        "bq_full_037"
+      ],
+      "pairCount": 5,
+      "savingEligiblePairs": 4,
+      "noMatchPairs": 1,
+      "qualityFailures": 0,
+      "meanInputReductionEligible": 0.6358293889133695,
+      "meanTotalReductionEligible": 0.023788937723305453,
+      "aggregateInputReductionEligible": 0.6329401822000721,
+      "aggregateTotalReductionEligible": 0.023799930158218463,
+      "totalsEligible": {
+        "rawInput": 80461,
+        "proofweaveInput": 29534,
+        "rawOutput": 732,
+        "proofweaveOutput": 671,
+        "rawReasoning": 280,
+        "proofweaveReasoning": 482,
+        "rawCacheRead": null,
+        "proofweaveCacheRead": null,
+        "rawTotal": 111681,
+        "proofweaveTotal": 109023,
+        "rawCost": null,
+        "proofweaveCost": null
+      },
+      "totalsAllRows": {
+        "rawInput": 80733,
+        "proofweaveInput": 29808,
+        "rawOutput": 801,
+        "proofweaveOutput": 743,
+        "rawReasoning": 335,
+        "proofweaveReasoning": 557,
+        "rawCacheRead": null,
+        "proofweaveCacheRead": null,
+        "rawTotal": 138189,
+        "proofweaveTotal": 135556
+      },
+      "outputDir": "/tmp/proofweave-live-benchmark-gpt-5.5-fast-high/smoke"
+    },
+    {
+      "label": "gemini-3.5-flash",
+      "name": "Gemini 3.5 Flash",
+      "status": "log_complete_summary_derived",
+      "usageSource": "opencode_request_usage",
+      "providerBillingClaim": false,
+      "smokeQueryIds": [
+        "bq_full_013",
+        "bq_full_019",
+        "bq_full_025",
+        "bq_full_031",
+        "bq_full_037"
+      ],
+      "pairCount": 5,
+      "savingEligiblePairs": 4,
+      "noMatchPairs": 1,
+      "qualityFailures": 0,
+      "meanInputReductionEligible": 0.10094921547231897,
+      "meanTotalReductionEligible": 0.012096838968017887,
+      "aggregateInputReductionEligible": 0.10095686274509807,
+      "aggregateTotalReductionEligible": 0.012161050548766483,
+      "totalsEligible": {
+        "rawInput": 31875,
+        "proofweaveInput": 28657,
+        "rawOutput": 763,
+        "proofweaveOutput": 855,
+        "rawReasoning": 4873,
+        "proofweaveReasoning": 6381,
+        "rawCacheRead": 97428,
+        "proofweaveCacheRead": 97405,
+        "rawTotal": 134939,
+        "proofweaveTotal": 133298,
+        "rawCost": 0.1131507,
+        "proofweaveCost": 0.12272025
+      },
+      "totalsAllRows": {
+        "rawInput": 38388,
+        "proofweaveInput": 35174,
+        "rawOutput": 930,
+        "proofweaveOutput": 1021,
+        "rawReasoning": 5858,
+        "proofweaveReasoning": 7243,
+        "rawCacheRead": 121774,
+        "proofweaveCacheRead": 121751,
+        "rawTotal": 166950,
+        "proofweaveTotal": 165189
+      },
+      "outputDir": "/tmp/proofweave-live-benchmark-gemini/smoke"
+    }
+  ]
+}

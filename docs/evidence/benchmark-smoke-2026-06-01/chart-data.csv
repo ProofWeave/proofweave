@@ -1,0 +1,4 @@
+model,status,usageSource,pairCount,savingEligiblePairs,noMatchPairs,qualityFailures,meanInputReductionEligible,meanTotalReductionEligible,aggregateInputReductionEligible,aggregateTotalReductionEligible,rawInputEligible,proofweaveInputEligible,rawTotalEligible,proofweaveTotalEligible,rawObservedCostEligible,proofweaveObservedCostEligible
+Claude Opus 4.8,complete,offline_ctt,5,4,1,0,0.669216587851478,0.6366728756583986,0.6691625069328897,0.6363847045191193,3606,1193,4315,1569,,
+GPT-5.5 Fast High,complete,opencode_request_usage,5,4,1,0,0.6358293889133695,0.023788937723305453,0.6329401822000721,0.023799930158218463,80461,29534,111681,109023,,
+Gemini 3.5 Flash,log_complete_summary_derived,opencode_request_usage,5,4,1,0,0.10094921547231897,0.012096838968017887,0.10095686274509807,0.012161050548766483,31875,28657,134939,133298,0.1131507,0.12272025
