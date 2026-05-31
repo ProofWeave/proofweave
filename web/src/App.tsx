@@ -10,6 +10,7 @@ import { AttestPage } from './pages/AttestPage';
 import { ExplorerPage } from './pages/ExplorerPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ClaimsPage } from './pages/ClaimsPage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import type { ReactNode } from 'react';
 
@@ -92,6 +93,7 @@ export default function App() {
               <Route path="attest" element={<AttestPage />} />
               <Route path="explorer" element={<ExplorerPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="claims" element={<ClaimsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="admin" element={<AdminDashboard />} />
             </Route>

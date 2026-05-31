@@ -6,6 +6,7 @@ import {
   FileCheck,
   Search,
   BarChart3,
+  Coins,
   Settings,
   ShieldCheck,
   LogOut,
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/attest', icon: FileCheck, label: 'Attest' },
   { to: '/explorer', icon: Search, label: 'Explorer' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/claims', icon: Coins, label: 'Earnings' },
   { to: '/admin', icon: ShieldCheck, label: 'Admin Audit' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
@@ -37,16 +39,26 @@ export function AppLayout() {
     ? user.email.slice(0, 2).toUpperCase()
     : '??';
 
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, []);
+
   // ── Global keyboard shortcut: Cmd+K / Ctrl+K ──
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
-      setSearchOpen((prev) => !prev);
+      if (searchOpen) closeSearch();
+      else openSearch();
     }
     if (e.key === 'Escape') {
-      setSearchOpen(false);
+      closeSearch();
     }
-  }, []);
+  }, [closeSearch, openSearch, searchOpen]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleGlobalKeyDown);
@@ -57,8 +69,6 @@ export function AppLayout() {
   useEffect(() => {
     if (searchOpen) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else {
-      setSearchQuery('');
     }
   }, [searchOpen]);
 
@@ -66,8 +76,7 @@ export function AppLayout() {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/explorer?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchOpen(false);
-      setSearchQuery('');
+      closeSearch();
     }
   };
 
@@ -106,7 +115,7 @@ export function AppLayout() {
         {/* Cmd+K shortcut hint */}
         <button
           className="cmdk-sidebar-hint"
-          onClick={() => setSearchOpen(true)}
+          onClick={openSearch}
         >
           <Search size={14} />
           <span>검색</span>
@@ -158,7 +167,7 @@ export function AppLayout() {
       {searchOpen && (
         <div
           className="cmdk-overlay"
-          onClick={() => setSearchOpen(false)}
+          onClick={closeSearch}
         >
           <div
             className="cmdk-modal"
@@ -188,7 +197,7 @@ export function AppLayout() {
                   className="cmdk-item"
                   onClick={() => {
                     navigate(to);
-                    setSearchOpen(false);
+                    closeSearch();
                   }}
                 >
                   <Icon size={16} />
