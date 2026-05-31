@@ -6,7 +6,10 @@
   "description": "Offline + paired benchmark harness for ProofWeave token-efficiency claims",
   "scripts": {
     "count": "tsx scripts/count-canonical.ts",
+    "dataset:v2": "node scripts/generate-benchmark-v2-dataset.mjs",
     "benchmark:offline": "tsx scripts/run-paired-benchmark.ts --mode=offline",
+    "benchmark:v2": "tsx scripts/run-benchmark-v2.ts",
+    "retrieval:v2": "tsx scripts/run-retrieval-benchmark.ts",
     "score": "tsx scripts/score-quality.ts",
     "summarize": "tsx scripts/summarize-results.ts",
     "benchmark": "tsx scripts/run-paired-benchmark.ts --mode=offline && tsx scripts/score-quality.ts && tsx scripts/summarize-results.ts",

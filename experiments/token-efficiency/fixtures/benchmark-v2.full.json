@@ -1,0 +1,2387 @@
+{
+  "schemaVersion": "proofweave.token-efficiency.benchmark.v2.full",
+  "description": "Larger offline fixture with 6 domains, 18 listings, 42 queries, quality rubrics, retrieval judgments, and curated public-source provenance.",
+  "scenarioConfig": {
+    "defaultTopK": 5,
+    "offlineOnly": true,
+    "providerUsageMode": "future_live_mode_extension_only"
+  },
+  "modelConfig": [
+    {
+      "modelId": "claude-opus-4.8",
+      "modelLabel": "claude-opus-4.8",
+      "provider": "anthropic",
+      "providerModelId": null,
+      "offlineContextBudgetTokens": 200000,
+      "offlineOutputBudgetTokens": 4096,
+      "usageSource": "offline_proxy_only"
+    },
+    {
+      "modelId": "gpt-5.5-fast-high",
+      "modelLabel": "gpt-5.5-fast-high",
+      "provider": "openai",
+      "providerModelId": null,
+      "offlineContextBudgetTokens": 200000,
+      "offlineOutputBudgetTokens": 4096,
+      "usageSource": "offline_proxy_only"
+    },
+    {
+      "modelId": "gemini-3.5-flash",
+      "modelLabel": "gemini-3.5-flash",
+      "provider": "google",
+      "providerModelId": null,
+      "offlineContextBudgetTokens": 1000000,
+      "offlineOutputBudgetTokens": 8192,
+      "usageSource": "offline_proxy_only"
+    }
+  ],
+  "datasetConfig": {
+    "domains": [
+      "api_spec_migration",
+      "onchain_fee_measurement",
+      "market_timeseries",
+      "regulatory_comparison",
+      "security_deployment",
+      "agent_workflow"
+    ],
+    "matchedQueries": 36,
+    "noMatchQueries": 6,
+    "listings": 18,
+    "sourcePolicy": "Curated notes from public official documentation and dataset-platform candidates; source URLs are stored per listing.",
+    "generatedAt": "2026-05-29T00:00:00+09:00"
+  },
+  "queries": [
+    {
+      "queryId": "bq_full_001",
+      "domain": "api_spec_migration",
+      "userQuery": "OpenAI chat completions 코드를 Responses API로 옮길 때 input 배열, max_output_tokens, streaming event를 어떤 순서로 바꿔야 하나?",
+      "expectedListingIds": [
+        "att_api_openai_responses_migration"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "/v1/responses",
+          "input",
+          "max_output_tokens",
+          "response.output_text.delta"
+        ],
+        "mustNotHallucinate": [
+          "/v2/responses",
+          "max_completion_tokens only",
+          "GPT-6"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_002",
+      "domain": "api_spec_migration",
+      "userQuery": "Responses API에서 function tool 결과를 다시 넣는 방식과 기존 tool_calls 마이그레이션 주의점을 요약해줘.",
+      "expectedListingIds": [
+        "att_api_openai_responses_migration"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "function_call_output",
+          "tool call id",
+          "response.id",
+          "previous_response_id"
+        ],
+        "mustNotHallucinate": [
+          "function_call_result",
+          "messages-only API",
+          "tool result is free"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_003",
+      "domain": "api_spec_migration",
+      "userQuery": "OpenAPI 예제 스펙을 마이그레이션 fixture로 쓸 때 operationId와 components.schemas를 어떻게 보존해야 해?",
+      "expectedListingIds": [
+        "att_api_openapi_petstore_contract"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "operationId",
+          "components.schemas",
+          "enum",
+          "response status codes"
+        ],
+        "mustNotHallucinate": [
+          "GraphQL schema",
+          "implementation database table",
+          "OAuth token endpoint invented"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_004",
+      "domain": "api_spec_migration",
+      "userQuery": "Petstore류 OpenAPI contract에서 securitySchemes와 operation-level security를 분리해서 테스트하는 기준을 줘.",
+      "expectedListingIds": [
+        "att_api_openapi_petstore_contract"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "securitySchemes",
+          "operation-level security",
+          "examples",
+          "unknown"
+        ],
+        "mustNotHallucinate": [
+          "all endpoints require OAuth",
+          "delete security arrays",
+          "mock server only"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_005",
+      "domain": "api_spec_migration",
+      "userQuery": "결제 API 마이그레이션에서 Idempotency-Key와 webhook event.id dedupe를 분리해서 검증하려면 어떤 fixture가 필요해?",
+      "expectedListingIds": [
+        "att_api_stripe_webhook_idempotency"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "Idempotency-Key",
+          "event.id",
+          "signature",
+          "out-of-order"
+        ],
+        "mustNotHallucinate": [
+          "idempotency key verifies signatures",
+          "no retry",
+          "same as OAuth"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_006",
+      "domain": "api_spec_migration",
+      "userQuery": "Webhook handler가 재시도와 중복 이벤트를 받을 때 안전하게 처리하는 migration recipe를 줘.",
+      "expectedListingIds": [
+        "att_api_stripe_webhook_idempotency"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "webhook signature",
+          "processed-event table",
+          "retry",
+          "request fingerprint"
+        ],
+        "mustNotHallucinate": [
+          "process before verification",
+          "delete event id",
+          "exactly once delivery"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_007",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "Solana에서 getRecentPrioritizationFees로 priority fee를 산정하고 ComputeBudget instruction을 넣는 절차를 알려줘.",
+      "expectedListingIds": [
+        "att_fee_solana_priority_fee"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "getRecentPrioritizationFees",
+          "SetComputeUnitLimit",
+          "SetComputeUnitPrice",
+          "micro-lamports"
+        ],
+        "mustNotHallucinate": [
+          "EIP-1559 exact copy",
+          "priority fee in SOL only",
+          "base fee burn"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_008",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "Solana priority fee와 Jito tip을 같은 비용으로 합치지 말아야 하는 이유를 벤치마크 rubric으로 잡고 싶어.",
+      "expectedListingIds": [
+        "att_fee_solana_priority_fee"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "Jito tips",
+          "native prioritization fee",
+          "compute unit",
+          "1,000,000"
+        ],
+        "mustNotHallucinate": [
+          "Jito is mandatory",
+          "tips replace compute budget",
+          "gasPrice"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_009",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "Ethereum EIP-1559 수수료 추정을 eth_feeHistory 기반으로 만들 때 baseFeePerGas와 reward percentiles를 어떻게 써?",
+      "expectedListingIds": [
+        "att_fee_ethereum_fee_history"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "eth_feeHistory",
+          "baseFeePerGas",
+          "reward percentiles",
+          "maxPriorityFeePerGas"
+        ],
+        "mustNotHallucinate": [
+          "Solana compute units",
+          "base fee paid to validators",
+          "gasless by default"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_010",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "maxFeePerGas와 maxPriorityFeePerGas를 분리해서 저장하는 fee dataset 기준을 만들어줘.",
+      "expectedListingIds": [
+        "att_fee_ethereum_fee_history"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "maxFeePerGas",
+          "maxPriorityFeePerGas",
+          "wei",
+          "block range"
+        ],
+        "mustNotHallucinate": [
+          "single gasPrice only",
+          "forward-fill missing rewards",
+          "priority fee burned"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_011",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "Base L2 수수료를 L2 execution fee와 L1 data fee로 나눠서 측정하는 recipe가 필요해.",
+      "expectedListingIds": [
+        "att_fee_base_l2_breakdown"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "L2 execution fee",
+          "L1 data fee",
+          "receipt",
+          "calldata size"
+        ],
+        "mustNotHallucinate": [
+          "same as Ethereum L1 only",
+          "Solana lamports",
+          "validator tip"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_012",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "OP Stack 체인 수수료 비교에서 chain id와 time window를 왜 고정해야 하는지 정리해줘.",
+      "expectedListingIds": [
+        "att_fee_base_l2_breakdown"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "OP Stack",
+          "chain id",
+          "time window",
+          "effective gas price"
+        ],
+        "mustNotHallucinate": [
+          "all L2 fees identical",
+          "ignore receipt",
+          "no calldata cost"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_013",
+      "domain": "market_timeseries",
+      "userQuery": "Kraken OHLC와 trades를 비교해서 candle 품질을 검증하려면 어떤 컬럼과 gap policy가 필요해?",
+      "expectedListingIds": [
+        "att_market_kraken_ohlc_trades"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "OHLC",
+          "trades",
+          "last cursor",
+          "gap list"
+        ],
+        "mustNotHallucinate": [
+          "forward-fill by default",
+          "Binance only",
+          "daily only"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_014",
+      "domain": "market_timeseries",
+      "userQuery": "거래소 candle을 trades에서 재계산할 때 open/high/low/close/volume/count 기준을 정리해줘.",
+      "expectedListingIds": [
+        "att_market_kraken_ohlc_trades"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "count"
+        ],
+        "mustNotHallucinate": [
+          "ignore bucket boundaries",
+          "VWAP is close",
+          "no timestamp"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_015",
+      "domain": "market_timeseries",
+      "userQuery": "CoinGecko market_chart 데이터를 prices, market_caps, total_volumes로 정규화하는 기준을 알려줘.",
+      "expectedListingIds": [
+        "att_market_coingecko_chart"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "prices",
+          "market_caps",
+          "total_volumes",
+          "timestamp"
+        ],
+        "mustNotHallucinate": [
+          "order book depth",
+          "OHLC count column",
+          "guaranteed real-time"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_016",
+      "domain": "market_timeseries",
+      "userQuery": "moving days 파라미터 대신 range endpoint를 fixture에 쓰는 이유와 누락값 처리 기준을 정리해줘.",
+      "expectedListingIds": [
+        "att_market_coingecko_chart"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "market_chart/range",
+          "fixed benchmark windows",
+          "missing values",
+          "fill policy"
+        ],
+        "mustNotHallucinate": [
+          "always forward-fill",
+          "ignore quote currency",
+          "seconds only"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_017",
+      "domain": "market_timeseries",
+      "userQuery": "Uniswap v3 poolDayData 기반 liquidity timeseries를 만들 때 decimals와 block number를 어떻게 보존해야 해?",
+      "expectedListingIds": [
+        "att_market_uniswap_v3_liquidity"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "poolDayData",
+          "token decimals",
+          "block number",
+          "liquidity"
+        ],
+        "mustNotHallucinate": [
+          "constant product v2 only",
+          "no tick",
+          "centralized exchange"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_018",
+      "domain": "market_timeseries",
+      "userQuery": "DeFi TVL 시계열에서 quote asset과 pricing source를 artifact에 남겨야 하는 이유를 정리해줘.",
+      "expectedListingIds": [
+        "att_market_uniswap_v3_liquidity"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "TVL",
+          "quote asset",
+          "pricing source",
+          "chain id"
+        ],
+        "mustNotHallucinate": [
+          "TVL equals volume",
+          "ignore decimals",
+          "single global price"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_019",
+      "domain": "regulatory_comparison",
+      "userQuery": "FATF Travel Rule baseline에서 originator information과 beneficiary information을 분리해서 비교표로 만들고 싶어.",
+      "expectedListingIds": [
+        "att_reg_fatf_travel_rule"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "Recommendation 16",
+          "originator information",
+          "beneficiary information",
+          "VASP"
+        ],
+        "mustNotHallucinate": [
+          "single global threshold",
+          "no local law needed",
+          "privacy exemption for all"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_020",
+      "domain": "regulatory_comparison",
+      "userQuery": "self-hosted wallet 처리 기준을 FATF baseline과 local implementation으로 나눠서 설명해줘.",
+      "expectedListingIds": [
+        "att_reg_fatf_travel_rule"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "self-hosted wallet",
+          "local implementation",
+          "thresholds",
+          "verification"
+        ],
+        "mustNotHallucinate": [
+          "always exempt",
+          "FATF is directly binding law",
+          "no VASP"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_021",
+      "domain": "regulatory_comparison",
+      "userQuery": "US FinCEN Funds Travel Rule Q&A에서 $3,000 threshold와 recordkeeping/transmittal 구분을 뽑아줘.",
+      "expectedListingIds": [
+        "att_reg_fincen_funds_travel_rule"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "FinCEN",
+          "$3,000",
+          "recordkeeping",
+          "transmittal"
+        ],
+        "mustNotHallucinate": [
+          "$10,000 only",
+          "EU TFR",
+          "universal exemption"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_022",
+      "domain": "regulatory_comparison",
+      "userQuery": "FinCEN Q&A를 crypto travel rule 비교표에 넣을 때 어떤 caveat를 붙여야 해?",
+      "expectedListingIds": [
+        "att_reg_fincen_funds_travel_rule"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "funds transfers",
+          "virtual currency guidance",
+          "scope",
+          "foreign equivalent"
+        ],
+        "mustNotHallucinate": [
+          "complete crypto manual",
+          "zero threshold",
+          "no BSA"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_023",
+      "domain": "regulatory_comparison",
+      "userQuery": "EU TFR에서 CASP가 crypto-asset transfer information을 처리할 때 Article 14와 EBA guideline 기준을 연결해줘.",
+      "expectedListingIds": [
+        "att_reg_eu_tfr_eba_guidelines"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "Regulation (EU) 2023/1113",
+          "CASP",
+          "Article 14",
+          "missing or incomplete information"
+        ],
+        "mustNotHallucinate": [
+          "US $3,000 threshold",
+          "FinCEN only",
+          "no intermediary duties"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_024",
+      "domain": "regulatory_comparison",
+      "userQuery": "EU crypto travel rule을 FATF baseline과 비교할 때 PSP/CASP/intermediary 구분을 어떻게 잡아야 해?",
+      "expectedListingIds": [
+        "att_reg_eu_tfr_eba_guidelines"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "PSP",
+          "CASP",
+          "intermediary CASP",
+          "EBA"
+        ],
+        "mustNotHallucinate": [
+          "same as US BSA",
+          "no crypto scope",
+          "only banks"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_025",
+      "domain": "security_deployment",
+      "userQuery": "Base 메인넷 UUPS 프록시 배포 전에 _disableInitializers, ERC1967Proxy, storage layout 검증을 체크리스트로 줘.",
+      "expectedListingIds": [
+        "att_sec_openzeppelin_uups_deploy"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "_disableInitializers",
+          "ERC1967Proxy",
+          "storage layout",
+          "upgrade authorization"
+        ],
+        "mustNotHallucinate": [
+          "beacon proxy only",
+          "constructor initializes proxy state",
+          "skip storage check"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_026",
+      "domain": "security_deployment",
+      "userQuery": "UUPS deployment artifact에 implementation/proxy address와 initializer calldata를 남기는 이유가 뭐야?",
+      "expectedListingIds": [
+        "att_sec_openzeppelin_uups_deploy"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "implementation address",
+          "proxy address",
+          "initializer calldata",
+          "verification"
+        ],
+        "mustNotHallucinate": [
+          "single address only",
+          "no owner role",
+          "unstructured storage required"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_027",
+      "domain": "security_deployment",
+      "userQuery": "Foundry로 predeploy security smoke test를 구성할 때 forge test, fuzz, invariant, fork pinning을 어떻게 묶어?",
+      "expectedListingIds": [
+        "att_sec_foundry_security_smoke"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "forge test",
+          "fuzz",
+          "invariant",
+          "block number"
+        ],
+        "mustNotHallucinate": [
+          "gas snapshot proves security",
+          "no fork pin",
+          "only lint"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_028",
+      "domain": "security_deployment",
+      "userQuery": "배포 전 체크에서 gas snapshot과 보안 pass/fail을 분리해야 하는 이유를 알려줘.",
+      "expectedListingIds": [
+        "att_sec_foundry_security_smoke"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "forge snapshot",
+          "security pass/fail",
+          "accounting",
+          "roles"
+        ],
+        "mustNotHallucinate": [
+          "gas equals exploit risk",
+          "skip tests",
+          "unbounded fork"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_029",
+      "domain": "security_deployment",
+      "userQuery": "Slither 결과를 배포 전 triage artifact로 만들 때 detector id, severity, false positive 근거를 어떻게 남겨?",
+      "expectedListingIds": [
+        "att_sec_slither_static_analysis"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "detector id",
+          "severity",
+          "false positives",
+          "SARIF"
+        ],
+        "mustNotHallucinate": [
+          "all findings are critical",
+          "no human triage",
+          "bytecode only"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_030",
+      "domain": "security_deployment",
+      "userQuery": "Static analysis를 CI에 넣되 deployment blocker를 threat model 기준으로 나누는 방법을 알려줘.",
+      "expectedListingIds": [
+        "att_sec_slither_static_analysis"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "CI",
+          "JSON",
+          "deployment blockers",
+          "threat model"
+        ],
+        "mustNotHallucinate": [
+          "ignore severity",
+          "manual only",
+          "guaranteed exploit proof"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_031",
+      "domain": "agent_workflow",
+      "userQuery": "Claude Code Skill을 만들 때 SKILL.md description과 progressive disclosure를 어떻게 설계해야 해?",
+      "expectedListingIds": [
+        "att_agent_claude_code_skills"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "SKILL.md",
+          "description",
+          "progressive disclosure",
+          "workflow steps"
+        ],
+        "mustNotHallucinate": [
+          "plugin manifest required",
+          "API key required",
+          "always load all references"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_032",
+      "domain": "agent_workflow",
+      "userQuery": "에이전트용 skill 문서에 safety constraints와 verification expectations를 넣는 기준을 줘.",
+      "expectedListingIds": [
+        "att_agent_claude_code_skills"
+      ],
+      "expectedListingKinds": [
+        "workflow_recipe"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "safety constraints",
+          "verification expectations",
+          "scripts",
+          "examples"
+        ],
+        "mustNotHallucinate": [
+          "no trigger needed",
+          "provider billing",
+          "single prompt only"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_033",
+      "domain": "agent_workflow",
+      "userQuery": "토큰 절감 벤치마크에 OpenAI Evals식 quality rubric을 붙일 때 per-query score와 domain pass rate를 어떻게 내?",
+      "expectedListingIds": [
+        "att_agent_openai_evals_quality"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "scoring rubric",
+          "mustInclude",
+          "quality score",
+          "domain-level pass rate"
+        ],
+        "mustNotHallucinate": [
+          "token saving equals quality",
+          "judge only",
+          "no dataset"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_034",
+      "domain": "agent_workflow",
+      "userQuery": "LLM-as-judge와 deterministic check를 같이 쓰는 eval design을 ProofWeave benchmark에 맞게 정리해줘.",
+      "expectedListingIds": [
+        "att_agent_openai_evals_quality"
+      ],
+      "expectedListingKinds": [
+        "curated_dataset"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "LLM judge",
+          "deterministic",
+          "human review",
+          "quality-adjusted saving"
+        ],
+        "mustNotHallucinate": [
+          "fully automatic truth",
+          "ignore failures",
+          "single global score"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_035",
+      "domain": "agent_workflow",
+      "userQuery": "브라우저 네트워크 trace에서 OpenAPI 스펙을 만드는 agent workflow에 redaction과 coverage report 기준을 넣어줘.",
+      "expectedListingIds": [
+        "att_agent_browser_to_api_workflow"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "browser network requests",
+          "OpenAPI",
+          "redact",
+          "coverage report"
+        ],
+        "mustNotHallucinate": [
+          "cookies in output",
+          "complete coverage",
+          "no schemas"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_036",
+      "domain": "agent_workflow",
+      "userQuery": "UI journey 하나만 보고 API 전체를 안다고 주장하지 않도록 benchmark rubric을 어떻게 잡아야 해?",
+      "expectedListingIds": [
+        "att_agent_browser_to_api_workflow"
+      ],
+      "expectedListingKinds": [
+        "skill"
+      ],
+      "qualityRubric": {
+        "mustInclude": [
+          "unobserved endpoints",
+          "inferred schemas",
+          "single trace",
+          "method"
+        ],
+        "mustNotHallucinate": [
+          "full API proof",
+          "no status code",
+          "raw secrets"
+        ],
+        "passThreshold": 0.75
+      }
+    },
+    {
+      "queryId": "bq_full_037",
+      "domain": "api_spec_migration",
+      "userQuery": "Twitter Ads API v99에서 promoted-only campaign objective를 GraphQL subscription으로 바꾸는 공식 migration artifact가 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "invented Twitter Ads v99",
+          "fake GraphQL subscription",
+          "official artifact exists"
+        ],
+        "passThreshold": 1
+      }
+    },
+    {
+      "queryId": "bq_full_038",
+      "domain": "onchain_fee_measurement",
+      "userQuery": "Sui Move object storage rebate와 Aptos gas schedule을 같은 RPC로 비교한 ProofWeave fee artifact가 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "same RPC",
+          "Solana answer",
+          "Ethereum EIP-1559 answer"
+        ],
+        "passThreshold": 1
+      }
+    },
+    {
+      "queryId": "bq_full_039",
+      "domain": "market_timeseries",
+      "userQuery": "NYSE options full-depth order book millisecond feed를 무료 public API로 재현한 dataset이 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "free official full-depth feed",
+          "Kraken OHLC answer",
+          "CoinGecko has options book"
+        ],
+        "passThreshold": 1
+      }
+    },
+    {
+      "queryId": "bq_full_040",
+      "domain": "regulatory_comparison",
+      "userQuery": "Brazil crypto tax invoice와 South Korea VASP Travel Rule을 같은 2026 statute table로 합친 artifact가 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "single statute table exists",
+          "EU TFR answer",
+          "FinCEN only"
+        ],
+        "passThreshold": 1
+      }
+    },
+    {
+      "queryId": "bq_full_041",
+      "domain": "security_deployment",
+      "userQuery": "Sui Move package upgrade 전 object version 충돌을 피하는 보안 배포 체크리스트가 이 fixture에 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "OpenZeppelin UUPS as Sui Move",
+          "Foundry solves Move",
+          "Slither supports Move package upgrades"
+        ],
+        "passThreshold": 1
+      }
+    },
+    {
+      "queryId": "bq_full_042",
+      "domain": "agent_workflow",
+      "userQuery": "Figma-to-CAD mechanical part generation agent skill과 STEP file validator dataset이 있나?",
+      "expectedListingIds": [],
+      "expectedListingKinds": [],
+      "noMatchExpected": true,
+      "qualityRubric": {
+        "mustInclude": [],
+        "mustNotHallucinate": [
+          "browser-to-api answer",
+          "OpenAI evals answer",
+          "Claude skill covers CAD"
+        ],
+        "passThreshold": 1
+      }
+    }
+  ],
+  "listings": [
+    {
+      "attestationId": "att_api_openai_responses_migration",
+      "kind": "skill",
+      "title": "OpenAI Responses API Migration Skill",
+      "domain": "api_spec_migration",
+      "problemType": "migration",
+      "sourceBundle": [
+        "v2-full/source-bundles/openai-responses-migration.md"
+      ],
+      "artifactPath": "v2-full/artifacts/openai-responses-migration.md",
+      "createdAt": "2026-05-11T00:00:00Z",
+      "priceUsdMicros": 260000,
+      "freshnessWindowDays": 21,
+      "sourceUrls": [
+        "https://platform.openai.com/docs/api-reference/responses/create",
+        "https://platform.openai.com/docs/advanced-usage",
+        "https://platform.openai.com/docs/pricing"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "openai",
+        "responses-api",
+        "migration",
+        "tools",
+        "streaming"
+      ],
+      "keywords": [
+        "responses api",
+        "/v1/responses",
+        "response.output_text.delta",
+        "function_call_output",
+        "max_output_tokens"
+      ],
+      "synopsis": "Map legacy `/v1/chat/completions` calls to `/v1/responses` with an `input` array. Replace `max_tokens` or chat-only caps with `max_output_tokens` in the Responses request."
+    },
+    {
+      "attestationId": "att_api_openapi_petstore_contract",
+      "kind": "curated_dataset",
+      "title": "OpenAPI Petstore Contract Normalization Dataset",
+      "domain": "api_spec_migration",
+      "problemType": "openapi_contract",
+      "sourceBundle": [
+        "v2-full/source-bundles/openapi-petstore-contract.md"
+      ],
+      "artifactPath": "v2-full/artifacts/openapi-petstore-contract.md",
+      "createdAt": "2026-05-10T00:00:00Z",
+      "priceUsdMicros": 180000,
+      "freshnessWindowDays": 180,
+      "sourceUrls": [
+        "https://github.com/OAI/OpenAPI-Specification/tree/main/examples",
+        "https://spec.openapis.org/oas/latest.html"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "openapi",
+        "petstore",
+        "schema",
+        "operationid",
+        "contract"
+      ],
+      "keywords": [
+        "openapi",
+        "operationId",
+        "components.schemas",
+        "securitySchemes",
+        "examples"
+      ],
+      "synopsis": "Use the OpenAPI example as a fixture for `paths`, `operationId`, response status codes, and `components.schemas`. Normalize examples without dropping enum values, nullable fields, or request/response examples."
+    },
+    {
+      "attestationId": "att_api_stripe_webhook_idempotency",
+      "kind": "workflow_recipe",
+      "title": "Webhook Idempotency Migration Recipe",
+      "domain": "api_spec_migration",
+      "problemType": "webhook_migration",
+      "sourceBundle": [
+        "v2-full/source-bundles/stripe-webhook-idempotency.md"
+      ],
+      "artifactPath": "v2-full/artifacts/stripe-webhook-idempotency.md",
+      "createdAt": "2026-05-09T00:00:00Z",
+      "priceUsdMicros": 220000,
+      "freshnessWindowDays": 90,
+      "sourceUrls": [
+        "https://docs.stripe.com/api/idempotent_requests",
+        "https://docs.stripe.com/webhooks"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "stripe",
+        "webhook",
+        "idempotency",
+        "signature",
+        "retry"
+      ],
+      "keywords": [
+        "idempotency key",
+        "webhook signature",
+        "event id",
+        "retry",
+        "dedupe"
+      ],
+      "synopsis": "Use an `Idempotency-Key` for client-created payment requests and store the request fingerprint. Verify the webhook signature before accepting an event into the local queue."
+    },
+    {
+      "attestationId": "att_fee_solana_priority_fee",
+      "kind": "skill",
+      "title": "Solana Priority Fee Measurement Skill",
+      "domain": "onchain_fee_measurement",
+      "problemType": "fee_estimation",
+      "sourceBundle": [
+        "v2-full/source-bundles/solana-priority-fee.md"
+      ],
+      "artifactPath": "v2-full/artifacts/solana-priority-fee.md",
+      "createdAt": "2026-05-08T00:00:00Z",
+      "priceUsdMicros": 250000,
+      "freshnessWindowDays": 30,
+      "sourceUrls": [
+        "https://solana.com/docs/core/fees",
+        "https://solana.com/docs/rpc/http/getrecentprioritizationfees"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "solana",
+        "priority-fee",
+        "compute-budget",
+        "rpc",
+        "jito"
+      ],
+      "keywords": [
+        "getRecentPrioritizationFees",
+        "SetComputeUnitPrice",
+        "SetComputeUnitLimit",
+        "micro-lamports",
+        "prioritization fee"
+      ],
+      "synopsis": "Query `getRecentPrioritizationFees` for recent local fee evidence. Set the compute unit limit with `SetComputeUnitLimit` based on simulation plus margin."
+    },
+    {
+      "attestationId": "att_fee_ethereum_fee_history",
+      "kind": "curated_dataset",
+      "title": "Ethereum EIP-1559 Fee History Dataset",
+      "domain": "onchain_fee_measurement",
+      "problemType": "fee_history",
+      "sourceBundle": [
+        "v2-full/source-bundles/ethereum-fee-history.md"
+      ],
+      "artifactPath": "v2-full/artifacts/ethereum-fee-history.md",
+      "createdAt": "2026-05-07T00:00:00Z",
+      "priceUsdMicros": 280000,
+      "freshnessWindowDays": 14,
+      "sourceUrls": [
+        "https://ethereum.org/en/developers/docs/gas/",
+        "https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_feehistory"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "ethereum",
+        "eip-1559",
+        "fee-history",
+        "base-fee",
+        "priority-fee"
+      ],
+      "keywords": [
+        "eth_feeHistory",
+        "baseFeePerGas",
+        "reward percentiles",
+        "maxPriorityFeePerGas",
+        "maxFeePerGas"
+      ],
+      "synopsis": "Collect `eth_feeHistory` over a fixed block window and store the block range. Use `baseFeePerGas` for the base fee path and reward percentiles for priority-fee evidence."
+    },
+    {
+      "attestationId": "att_fee_base_l2_breakdown",
+      "kind": "workflow_recipe",
+      "title": "Base L2 Fee Breakdown Recipe",
+      "domain": "onchain_fee_measurement",
+      "problemType": "l2_fee_breakdown",
+      "sourceBundle": [
+        "v2-full/source-bundles/base-l2-fee-breakdown.md"
+      ],
+      "artifactPath": "v2-full/artifacts/base-l2-fee-breakdown.md",
+      "createdAt": "2026-05-06T00:00:00Z",
+      "priceUsdMicros": 240000,
+      "freshnessWindowDays": 30,
+      "sourceUrls": [
+        "https://docs.base.org/",
+        "https://docs.optimism.io/stack/transactions/fees"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "base",
+        "optimism",
+        "l2-fee",
+        "calldata",
+        "receipt"
+      ],
+      "keywords": [
+        "L1 data fee",
+        "L2 execution fee",
+        "receipt",
+        "calldata",
+        "OP Stack"
+      ],
+      "synopsis": "Break Base transaction cost into L2 execution fee and L1 data fee when fields are available. Store transaction receipt, chain id, gas used, effective gas price, and calldata size."
+    },
+    {
+      "attestationId": "att_market_kraken_ohlc_trades",
+      "kind": "curated_dataset",
+      "title": "Kraken OHLC and Trades Reconciliation Dataset",
+      "domain": "market_timeseries",
+      "problemType": "ohlc_reconciliation",
+      "sourceBundle": [
+        "v2-full/source-bundles/kraken-ohlc-trades.md"
+      ],
+      "artifactPath": "v2-full/artifacts/kraken-ohlc-trades.md",
+      "createdAt": "2026-05-05T00:00:00Z",
+      "priceUsdMicros": 350000,
+      "freshnessWindowDays": 7,
+      "sourceUrls": [
+        "https://docs.kraken.com/api/docs/rest-api/get-ohlc-data/",
+        "https://docs.kraken.com/api/docs/rest-api/get-recent-trades/"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "kraken",
+        "ohlc",
+        "trades",
+        "timeseries",
+        "reconciliation"
+      ],
+      "keywords": [
+        "OHLC",
+        "trades",
+        "interval",
+        "last cursor",
+        "volume weighted average"
+      ],
+      "synopsis": "Use Kraken OHLC rows with pair, interval, timestamp, open, high, low, close, volume, and count. Join recent trades by pair and timestamp window, keeping the `last` cursor for reproducibility."
+    },
+    {
+      "attestationId": "att_market_coingecko_chart",
+      "kind": "workflow_recipe",
+      "title": "CoinGecko Market Chart Normalization Recipe",
+      "domain": "market_timeseries",
+      "problemType": "market_chart",
+      "sourceBundle": [
+        "v2-full/source-bundles/coingecko-market-chart.md"
+      ],
+      "artifactPath": "v2-full/artifacts/coingecko-market-chart.md",
+      "createdAt": "2026-05-04T00:00:00Z",
+      "priceUsdMicros": 240000,
+      "freshnessWindowDays": 7,
+      "sourceUrls": [
+        "https://docs.coingecko.com/reference/coins-id-market-chart",
+        "https://docs.coingecko.com/reference/coins-id-market-chart-range"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "coingecko",
+        "market-chart",
+        "price",
+        "market-cap",
+        "volume"
+      ],
+      "keywords": [
+        "market_chart",
+        "prices",
+        "market_caps",
+        "total_volumes",
+        "range"
+      ],
+      "synopsis": "Normalize `prices`, `market_caps`, and `total_volumes` as timestamp-value series. Prefer `market_chart/range` for fixed benchmark windows."
+    },
+    {
+      "attestationId": "att_market_uniswap_v3_liquidity",
+      "kind": "curated_dataset",
+      "title": "Uniswap v3 Liquidity Time Series Dataset",
+      "domain": "market_timeseries",
+      "problemType": "defi_timeseries",
+      "sourceBundle": [
+        "v2-full/source-bundles/uniswap-v3-liquidity-timeseries.md"
+      ],
+      "artifactPath": "v2-full/artifacts/uniswap-v3-liquidity-timeseries.md",
+      "createdAt": "2026-05-03T00:00:00Z",
+      "priceUsdMicros": 320000,
+      "freshnessWindowDays": 14,
+      "sourceUrls": [
+        "https://docs.uniswap.org/",
+        "https://thegraph.com/docs/"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "uniswap",
+        "v3",
+        "liquidity",
+        "tvl",
+        "subgraph"
+      ],
+      "keywords": [
+        "poolDayData",
+        "liquidity",
+        "sqrtPrice",
+        "tick",
+        "TVL"
+      ],
+      "synopsis": "Use `poolDayData` style rows with pool address, chain id, timestamp, liquidity, volume, and TVL. Normalize token decimals before comparing liquidity or volume."
+    },
+    {
+      "attestationId": "att_reg_fatf_travel_rule",
+      "kind": "curated_dataset",
+      "title": "FATF Travel Rule Baseline Comparison",
+      "domain": "regulatory_comparison",
+      "problemType": "travel_rule",
+      "sourceBundle": [
+        "v2-full/source-bundles/fatf-travel-rule.md"
+      ],
+      "artifactPath": "v2-full/artifacts/fatf-travel-rule.md",
+      "createdAt": "2026-05-02T00:00:00Z",
+      "priceUsdMicros": 420000,
+      "freshnessWindowDays": 60,
+      "sourceUrls": [
+        "https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Guidance-rba-virtual-assets-2021.html",
+        "https://www.fatf-gafi.org/content/dam/fatf-gafi/guidance/Updated-Guidance-VA-VASP.pdf.coredownload.inline.pdf"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "fatf",
+        "travel-rule",
+        "vasp",
+        "originator",
+        "beneficiary"
+      ],
+      "keywords": [
+        "Recommendation 16",
+        "originator information",
+        "beneficiary information",
+        "VASP",
+        "virtual assets"
+      ],
+      "synopsis": "Use FATF Recommendation 16 as the baseline, not as a substitute for local law. Track required originator information and beneficiary information separately."
+    },
+    {
+      "attestationId": "att_reg_fincen_funds_travel_rule",
+      "kind": "curated_dataset",
+      "title": "FinCEN Funds Travel Rule Q&A Extract",
+      "domain": "regulatory_comparison",
+      "problemType": "us_travel_rule",
+      "sourceBundle": [
+        "v2-full/source-bundles/fincen-funds-travel-rule.md"
+      ],
+      "artifactPath": "v2-full/artifacts/fincen-funds-travel-rule.md",
+      "createdAt": "2026-05-01T00:00:00Z",
+      "priceUsdMicros": 410000,
+      "freshnessWindowDays": 90,
+      "sourceUrls": [
+        "https://www.fincen.gov/resources/statutes-regulations/guidance/funds-travel-regulations-questions-answers"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "fincen",
+        "travel-rule",
+        "bsa",
+        "threshold",
+        "funds-transfer"
+      ],
+      "keywords": [
+        "FinCEN",
+        "Funds Travel Rule",
+        "$3,000",
+        "transmittal",
+        "recordkeeping"
+      ],
+      "synopsis": "Record the FinCEN Funds Travel Rule threshold as equal to or greater than `$3,000` or foreign equivalent. Preserve the distinction between recordkeeping and transmittal obligations."
+    },
+    {
+      "attestationId": "att_reg_eu_tfr_eba_guidelines",
+      "kind": "workflow_recipe",
+      "title": "EU TFR and EBA Travel Rule Guidelines Recipe",
+      "domain": "regulatory_comparison",
+      "problemType": "eu_crypto_transfer",
+      "sourceBundle": [
+        "v2-full/source-bundles/eu-tfr-eba-guidelines.md"
+      ],
+      "artifactPath": "v2-full/artifacts/eu-tfr-eba-guidelines.md",
+      "createdAt": "2026-04-30T00:00:00Z",
+      "priceUsdMicros": 430000,
+      "freshnessWindowDays": 60,
+      "sourceUrls": [
+        "https://www.eba.europa.eu/regulation-and-policy/single-rulebook/interactive-single-rulebook/13084",
+        "https://www.eba.europa.eu/activities/single-rulebook/regulatory-activities/anti-money-laundering-and-countering-financing-terrorism/guidelines-information-requirements-relation-transfers-funds-and-certain-crypto-assets-transfers"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "eu",
+        "eba",
+        "tfr",
+        "travel-rule",
+        "casp"
+      ],
+      "keywords": [
+        "Regulation (EU) 2023/1113",
+        "CASP",
+        "Article 14",
+        "missing information",
+        "self-hosted address"
+      ],
+      "synopsis": "Label the EU source as `Regulation (EU) 2023/1113` plus EBA Travel Rule Guidelines. Track CASP and intermediary CASP duties separately from PSP duties."
+    },
+    {
+      "attestationId": "att_sec_openzeppelin_uups_deploy",
+      "kind": "workflow_recipe",
+      "title": "OpenZeppelin UUPS Deployment Checklist",
+      "domain": "security_deployment",
+      "problemType": "deployment_checklist",
+      "sourceBundle": [
+        "v2-full/source-bundles/openzeppelin-uups-deploy.md"
+      ],
+      "artifactPath": "v2-full/artifacts/openzeppelin-uups-deploy.md",
+      "createdAt": "2026-04-29T00:00:00Z",
+      "priceUsdMicros": 500000,
+      "freshnessWindowDays": 90,
+      "sourceUrls": [
+        "https://docs.openzeppelin.com/upgrades-plugins",
+        "https://docs.openzeppelin.com/upgrades-plugins/api-hardhat-upgrades",
+        "https://docs.openzeppelin.com/contracts/5.x/api/proxy"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "openzeppelin",
+        "uups",
+        "proxy",
+        "storage-layout",
+        "verification"
+      ],
+      "keywords": [
+        "UUPS",
+        "ERC1967Proxy",
+        "_disableInitializers",
+        "storage layout",
+        "upgrade authorization"
+      ],
+      "synopsis": "Call `_disableInitializers` in the implementation constructor or equivalent initializer-lock pattern. Deploy through `ERC1967Proxy` or an upgrades plugin configured for `kind: \"uups\"`."
+    },
+    {
+      "attestationId": "att_sec_foundry_security_smoke",
+      "kind": "skill",
+      "title": "Foundry Security Smoke Test Skill",
+      "domain": "security_deployment",
+      "problemType": "predeploy_security",
+      "sourceBundle": [
+        "v2-full/source-bundles/foundry-security-smoke.md"
+      ],
+      "artifactPath": "v2-full/artifacts/foundry-security-smoke.md",
+      "createdAt": "2026-04-28T00:00:00Z",
+      "priceUsdMicros": 230000,
+      "freshnessWindowDays": 60,
+      "sourceUrls": [
+        "https://book.getfoundry.sh/forge/tests",
+        "https://book.getfoundry.sh/forge/fuzz-testing",
+        "https://book.getfoundry.sh/forge/invariant-testing"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "foundry",
+        "forge",
+        "fuzz",
+        "invariant",
+        "predeploy"
+      ],
+      "keywords": [
+        "forge test",
+        "fuzz",
+        "invariant",
+        "fork",
+        "gas snapshot"
+      ],
+      "synopsis": "Run `forge test` for deterministic unit coverage. Run targeted fuzz tests for boundary inputs and accounting transitions."
+    },
+    {
+      "attestationId": "att_sec_slither_static_analysis",
+      "kind": "workflow_recipe",
+      "title": "Slither Static Analysis Triage Recipe",
+      "domain": "security_deployment",
+      "problemType": "static_analysis",
+      "sourceBundle": [
+        "v2-full/source-bundles/slither-static-analysis.md"
+      ],
+      "artifactPath": "v2-full/artifacts/slither-static-analysis.md",
+      "createdAt": "2026-04-27T00:00:00Z",
+      "priceUsdMicros": 210000,
+      "freshnessWindowDays": 90,
+      "sourceUrls": [
+        "https://github.com/crytic/slither",
+        "https://github.com/crytic/slither/wiki"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "slither",
+        "static-analysis",
+        "solidity",
+        "triage",
+        "false-positive"
+      ],
+      "keywords": [
+        "slither",
+        "detectors",
+        "triage",
+        "false positive",
+        "SARIF"
+      ],
+      "synopsis": "Run Slither and preserve detector id, severity, file, and line evidence. Export JSON or SARIF so CI can diff findings."
+    },
+    {
+      "attestationId": "att_agent_claude_code_skills",
+      "kind": "workflow_recipe",
+      "title": "Claude Code Skill Authoring Recipe",
+      "domain": "agent_workflow",
+      "problemType": "skill_authoring",
+      "sourceBundle": [
+        "v2-full/source-bundles/claude-code-skills.md"
+      ],
+      "artifactPath": "v2-full/artifacts/claude-code-skills.md",
+      "createdAt": "2026-04-26T00:00:00Z",
+      "priceUsdMicros": 160000,
+      "freshnessWindowDays": 120,
+      "sourceUrls": [
+        "https://docs.anthropic.com/",
+        "https://docs.anthropic.com/en/docs/claude-code"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "claude-code",
+        "skill",
+        "progressive-disclosure",
+        "description",
+        "workflow"
+      ],
+      "keywords": [
+        "SKILL.md",
+        "description",
+        "progressive disclosure",
+        "trigger",
+        "examples"
+      ],
+      "synopsis": "Write a `SKILL.md` with a clear `description` trigger. Use progressive disclosure by linking scripts, references, and examples only when needed."
+    },
+    {
+      "attestationId": "att_agent_openai_evals_quality",
+      "kind": "curated_dataset",
+      "title": "OpenAI Evals Quality Rubric Dataset",
+      "domain": "agent_workflow",
+      "problemType": "eval_design",
+      "sourceBundle": [
+        "v2-full/source-bundles/openai-evals-quality.md"
+      ],
+      "artifactPath": "v2-full/artifacts/openai-evals-quality.md",
+      "createdAt": "2026-04-25T00:00:00Z",
+      "priceUsdMicros": 190000,
+      "freshnessWindowDays": 90,
+      "sourceUrls": [
+        "https://platform.openai.com/docs/guides/evals",
+        "https://platform.openai.com/docs/guides/evals-design"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "openai",
+        "evals",
+        "rubric",
+        "quality",
+        "judge"
+      ],
+      "keywords": [
+        "evals",
+        "rubric",
+        "grader",
+        "dataset",
+        "quality score"
+      ],
+      "synopsis": "Define eval input, expected behavior, and scoring rubric before running models. Use deterministic `mustInclude` checks alongside any LLM judge."
+    },
+    {
+      "attestationId": "att_agent_browser_to_api_workflow",
+      "kind": "skill",
+      "title": "Browser-to-API Agent Workflow Skill",
+      "domain": "agent_workflow",
+      "problemType": "api_discovery",
+      "sourceBundle": [
+        "v2-full/source-bundles/browser-to-api-agent-workflow.md"
+      ],
+      "artifactPath": "v2-full/artifacts/browser-to-api-agent-workflow.md",
+      "createdAt": "2026-04-24T00:00:00Z",
+      "priceUsdMicros": 180000,
+      "freshnessWindowDays": 120,
+      "sourceUrls": [
+        "https://playwright.dev/docs/network",
+        "https://spec.openapis.org/oas/latest.html"
+      ],
+      "licenseNote": "Curated benchmark notes derived from public documentation URLs; not a verbatim mirror.",
+      "tags": [
+        "browser",
+        "api-discovery",
+        "openapi",
+        "network-trace",
+        "agent"
+      ],
+      "keywords": [
+        "browser trace",
+        "network requests",
+        "OpenAPI",
+        "redaction",
+        "coverage report"
+      ],
+      "synopsis": "Capture browser network requests with method, URL pattern, status code, request body, and response shape. Redact tokens, cookies, emails, and personal identifiers before writing artifacts."
+    }
+  ],
+  "retrievalJudgments": [
+    {
+      "queryId": "bq_full_001",
+      "relevantListingIds": [
+        "att_api_openai_responses_migration"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_002",
+      "relevantListingIds": [
+        "att_api_openai_responses_migration"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_003",
+      "relevantListingIds": [
+        "att_api_openapi_petstore_contract"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_004",
+      "relevantListingIds": [
+        "att_api_openapi_petstore_contract"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_005",
+      "relevantListingIds": [
+        "att_api_stripe_webhook_idempotency"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_006",
+      "relevantListingIds": [
+        "att_api_stripe_webhook_idempotency"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_007",
+      "relevantListingIds": [
+        "att_fee_solana_priority_fee"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_008",
+      "relevantListingIds": [
+        "att_fee_solana_priority_fee"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_009",
+      "relevantListingIds": [
+        "att_fee_ethereum_fee_history"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_010",
+      "relevantListingIds": [
+        "att_fee_ethereum_fee_history"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_011",
+      "relevantListingIds": [
+        "att_fee_base_l2_breakdown"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_012",
+      "relevantListingIds": [
+        "att_fee_base_l2_breakdown"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_013",
+      "relevantListingIds": [
+        "att_market_kraken_ohlc_trades"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_014",
+      "relevantListingIds": [
+        "att_market_kraken_ohlc_trades"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_015",
+      "relevantListingIds": [
+        "att_market_coingecko_chart"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_016",
+      "relevantListingIds": [
+        "att_market_coingecko_chart"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_017",
+      "relevantListingIds": [
+        "att_market_uniswap_v3_liquidity"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_018",
+      "relevantListingIds": [
+        "att_market_uniswap_v3_liquidity"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_019",
+      "relevantListingIds": [
+        "att_reg_fatf_travel_rule"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_020",
+      "relevantListingIds": [
+        "att_reg_fatf_travel_rule"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_021",
+      "relevantListingIds": [
+        "att_reg_fincen_funds_travel_rule"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_022",
+      "relevantListingIds": [
+        "att_reg_fincen_funds_travel_rule"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_023",
+      "relevantListingIds": [
+        "att_reg_eu_tfr_eba_guidelines"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_024",
+      "relevantListingIds": [
+        "att_reg_eu_tfr_eba_guidelines"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_025",
+      "relevantListingIds": [
+        "att_sec_openzeppelin_uups_deploy"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_026",
+      "relevantListingIds": [
+        "att_sec_openzeppelin_uups_deploy"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_027",
+      "relevantListingIds": [
+        "att_sec_foundry_security_smoke"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_028",
+      "relevantListingIds": [
+        "att_sec_foundry_security_smoke"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_029",
+      "relevantListingIds": [
+        "att_sec_slither_static_analysis"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_030",
+      "relevantListingIds": [
+        "att_sec_slither_static_analysis"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_031",
+      "relevantListingIds": [
+        "att_agent_claude_code_skills"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_032",
+      "relevantListingIds": [
+        "att_agent_claude_code_skills"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_033",
+      "relevantListingIds": [
+        "att_agent_openai_evals_quality"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_034",
+      "relevantListingIds": [
+        "att_agent_openai_evals_quality"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_035",
+      "relevantListingIds": [
+        "att_agent_browser_to_api_workflow"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_036",
+      "relevantListingIds": [
+        "att_agent_browser_to_api_workflow"
+      ],
+      "noMatchExpected": false
+    },
+    {
+      "queryId": "bq_full_037",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    },
+    {
+      "queryId": "bq_full_038",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    },
+    {
+      "queryId": "bq_full_039",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    },
+    {
+      "queryId": "bq_full_040",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    },
+    {
+      "queryId": "bq_full_041",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    },
+    {
+      "queryId": "bq_full_042",
+      "relevantListingIds": [],
+      "noMatchExpected": true
+    }
+  ],
+  "retrievedTopK": [
+    {
+      "queryId": "bq_full_001",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_api_stripe_webhook_idempotency",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_002",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_api_stripe_webhook_idempotency",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_003",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_openapi_petstore_contract",
+        "att_api_openai_responses_migration",
+        "att_api_stripe_webhook_idempotency",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_004",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_openapi_petstore_contract",
+        "att_api_openai_responses_migration",
+        "att_api_stripe_webhook_idempotency",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_005",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_stripe_webhook_idempotency",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_006",
+      "source": "fixture",
+      "listingIds": [
+        "att_api_stripe_webhook_idempotency",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history"
+      ]
+    },
+    {
+      "queryId": "bq_full_007",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_ethereum_fee_history",
+        "att_fee_solana_priority_fee",
+        "att_fee_base_l2_breakdown",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_008",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history",
+        "att_fee_base_l2_breakdown",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_009",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_ethereum_fee_history",
+        "att_fee_solana_priority_fee",
+        "att_fee_base_l2_breakdown",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_010",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_ethereum_fee_history",
+        "att_fee_solana_priority_fee",
+        "att_fee_base_l2_breakdown",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_011",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history",
+        "att_fee_base_l2_breakdown",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_012",
+      "source": "fixture",
+      "listingIds": [
+        "att_fee_base_l2_breakdown",
+        "att_fee_solana_priority_fee",
+        "att_fee_ethereum_fee_history",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_013",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_coingecko_chart",
+        "att_market_uniswap_v3_liquidity",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_api_stripe_webhook_idempotency"
+      ]
+    },
+    {
+      "queryId": "bq_full_014",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_coingecko_chart",
+        "att_market_kraken_ohlc_trades",
+        "att_market_uniswap_v3_liquidity",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_015",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_coingecko_chart",
+        "att_market_kraken_ohlc_trades",
+        "att_market_uniswap_v3_liquidity",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_016",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_coingecko_chart",
+        "att_market_kraken_ohlc_trades",
+        "att_market_uniswap_v3_liquidity",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_017",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_uniswap_v3_liquidity",
+        "att_market_kraken_ohlc_trades",
+        "att_market_coingecko_chart",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_018",
+      "source": "fixture",
+      "listingIds": [
+        "att_market_uniswap_v3_liquidity",
+        "att_market_kraken_ohlc_trades",
+        "att_market_coingecko_chart",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_019",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_fatf_travel_rule",
+        "att_reg_fincen_funds_travel_rule",
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_020",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_fatf_travel_rule",
+        "att_reg_fincen_funds_travel_rule",
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_021",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_fatf_travel_rule",
+        "att_reg_fincen_funds_travel_rule",
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_022",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_fatf_travel_rule",
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_reg_fincen_funds_travel_rule",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_023",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_reg_fatf_travel_rule",
+        "att_reg_fincen_funds_travel_rule",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_024",
+      "source": "fixture",
+      "listingIds": [
+        "att_reg_eu_tfr_eba_guidelines",
+        "att_reg_fatf_travel_rule",
+        "att_reg_fincen_funds_travel_rule",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_025",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_openzeppelin_uups_deploy",
+        "att_sec_foundry_security_smoke",
+        "att_sec_slither_static_analysis",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_026",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_foundry_security_smoke",
+        "att_sec_slither_static_analysis",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract",
+        "att_api_stripe_webhook_idempotency"
+      ]
+    },
+    {
+      "queryId": "bq_full_027",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_foundry_security_smoke",
+        "att_sec_openzeppelin_uups_deploy",
+        "att_sec_slither_static_analysis",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_028",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_openzeppelin_uups_deploy",
+        "att_sec_foundry_security_smoke",
+        "att_sec_slither_static_analysis",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_029",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_slither_static_analysis",
+        "att_sec_openzeppelin_uups_deploy",
+        "att_sec_foundry_security_smoke",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_030",
+      "source": "fixture",
+      "listingIds": [
+        "att_sec_slither_static_analysis",
+        "att_sec_openzeppelin_uups_deploy",
+        "att_sec_foundry_security_smoke",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_031",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_claude_code_skills",
+        "att_agent_openai_evals_quality",
+        "att_agent_browser_to_api_workflow",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_032",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_claude_code_skills",
+        "att_agent_openai_evals_quality",
+        "att_agent_browser_to_api_workflow",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_033",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_claude_code_skills",
+        "att_agent_browser_to_api_workflow",
+        "att_agent_openai_evals_quality",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_034",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_openai_evals_quality",
+        "att_agent_claude_code_skills",
+        "att_agent_browser_to_api_workflow",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_035",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_claude_code_skills",
+        "att_agent_browser_to_api_workflow",
+        "att_agent_openai_evals_quality",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_036",
+      "source": "fixture",
+      "listingIds": [
+        "att_agent_browser_to_api_workflow",
+        "att_agent_claude_code_skills",
+        "att_agent_openai_evals_quality",
+        "att_api_openai_responses_migration",
+        "att_api_openapi_petstore_contract"
+      ]
+    },
+    {
+      "queryId": "bq_full_037",
+      "source": "fixture",
+      "listingIds": []
+    },
+    {
+      "queryId": "bq_full_038",
+      "source": "fixture",
+      "listingIds": []
+    },
+    {
+      "queryId": "bq_full_039",
+      "source": "fixture",
+      "listingIds": []
+    },
+    {
+      "queryId": "bq_full_040",
+      "source": "fixture",
+      "listingIds": []
+    },
+    {
+      "queryId": "bq_full_041",
+      "source": "fixture",
+      "listingIds": []
+    },
+    {
+      "queryId": "bq_full_042",
+      "source": "fixture",
+      "listingIds": []
+    }
+  ]
+}
