@@ -162,6 +162,19 @@ const vaultAbi = [
   },
 ] as const;
 
+const claimAbi = [
+  {
+    type: "function",
+    name: "claimCreatorBalance",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "to", type: "address" },
+    ],
+    outputs: [],
+  },
+] as const;
+
 async function getSmartAccountForPayment(smartWalletAddress: string) {
   const cdp = getCdpClient();
 
@@ -343,6 +356,73 @@ export async function depositUsdcToVaultFromSmartWallet(
   const txHash = result.transactionHash;
   if (!txHash) {
     throw new Error("[wallet] No txHash after vault deposit UserOp completion");
+  }
+
+  return txHash;
+}
+
+/**
+ * creator 본인의 CDP smart wallet에서 vault claimCreatorBalance(amount, to)를 호출한다.
+ *
+ * 결제(depositUsdcToVaultFromSmartWallet)와 동일한 위임 메커니즘: owner EOA 키는 CDP TEE에 있고
+ * UserOp의 msg.sender = creator의 smart wallet이므로 컨트랙트의 _claimable[msg.sender] 검증을 통과한다.
+ * operator 키로 대신 claim하는 custody가 아니라, 유저 본인 위임 지갑이 실행하는 것이다.
+ *
+ * @param smartWalletAddress claim 주체 = creator의 CDP smart wallet (서버에서 인증 신원으로 유도)
+ * @param amountBaseUnits USDC base units (6 decimals). 호출 전 claimableBalance로 검증할 것
+ * @param toAddress 수령 주소 (기본은 creator 본인 smart wallet)
+ * @returns 확정된 txHash (UserOp 실패 시 에러 throw)
+ */
+export async function claimFromSmartWallet(
+  smartWalletAddress: string,
+  amountBaseUnits: bigint,
+  toAddress: string
+): Promise<string> {
+  const toHex = asAddress(toAddress, "to");
+  if (amountBaseUnits <= 0n) {
+    throw new Error("[wallet] claim amount must be greater than 0");
+  }
+
+  if (!env.CDP_API_KEY_ID || env.NODE_ENV === "development") {
+    // CDP 미설정 시 스킵 (개발 모드) — deposit과 동일
+    console.warn(
+      "[wallet] DEV MODE: skipping creator claim",
+      { from: smartWalletAddress, to: toHex, amount: amountBaseUnits.toString() }
+    );
+    return `dev-claim-tx-${Date.now()}`;
+  }
+
+  const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
+
+  const userOp = await cdp.evm.sendUserOperation({
+    smartAccount,
+    network: "base-sepolia",
+    calls: [
+      {
+        to: VAULT_ADDRESS,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: claimAbi,
+          functionName: "claimCreatorBalance",
+          args: [amountBaseUnits, toHex],
+        }),
+      },
+    ],
+  });
+
+  const result = await cdp.evm.waitForUserOperation({
+    userOpHash: userOp.userOpHash,
+    smartAccountAddress: userOp.smartAccountAddress,
+    waitOptions: { timeoutSeconds: 60 },
+  });
+
+  if (result.status === "failed") {
+    throw new Error(`[wallet] Claim UserOp failed: ${result.userOpHash}`);
+  }
+
+  const txHash = result.transactionHash;
+  if (!txHash) {
+    throw new Error("[wallet] No txHash after claim UserOp completion");
   }
 
   return txHash;

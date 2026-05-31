@@ -14,6 +14,7 @@ import { aiRouter } from "./routes/ai.js";
 import { taintGuardRouter } from "./routes/taintGuard.js";
 import { statsRouter } from "./routes/stats.js";
 import { purchasesRouter } from "./routes/purchases.js";
+import { claimsRouter } from "./routes/claims.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
@@ -40,6 +41,7 @@ app.use(pricingRouter);    // POST /pricing (authenticated), GET /pricing/:id (p
 app.use(walletRouter);     // GET /wallet/balance, GET /wallet/address
 app.use(statsRouter);      // GET /stats/me (authenticated)
 app.use(purchasesRouter);  // GET /purchases/mine, /purchases/history
+app.use(claimsRouter);     // GET /claims/me, POST /claims/execute (web CDP)
 
 // ── Attestation Routes (Phase 2-5) ──────────────────────────
 app.use(attestRouter);         // POST /attest (authenticated)
