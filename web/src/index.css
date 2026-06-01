@@ -3099,21 +3099,11 @@ tr:hover td {
 }
 
 .detail-data__content {
-  max-height: 400px;
-  overflow: auto;
+  /* no inner scroll box — data flows naturally; the modal itself scrolls */
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 16px;
-}
-
-.detail-data__content::-webkit-scrollbar {
-  width: 5px;
-}
-
-.detail-data__content::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 999px;
 }
 
 .detail-data__json {
@@ -3416,10 +3406,6 @@ tr:hover td {
 
   .detail-preview__actions {
     flex-direction: column;
-  }
-
-  .detail-data__content {
-    max-height: 300px;
   }
 }
 
