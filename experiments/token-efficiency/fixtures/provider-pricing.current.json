@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "purpose": "Per-Mtok pricing for COST ESTIMATION only. Not provider billing. Verify on pricing pages on live-run day.",
+    "asOf": "2026-06-01",
+    "unit": "USD per 1,000,000 tokens",
+    "warning": "claude-opus-4.8 and gpt-5.5-fast-high prices are UNVERIFIED placeholders (null). Do not estimate their cost until filled from the official pricing page on the run day. Fabricated prices are forbidden.",
+    "notes": [
+      "gemini output price includes thinking/thoughts tokens per Google pricing; a no-thinking single-shot call may differ.",
+      "Estimated cost = inputTokens/1e6*inputPerMtok + outputTokens/1e6*outputPerMtok. cacheRead/reasoning excluded by design (controlled single-shot harness)."
+    ]
+  },
+  "models": {
+    "gemini-3.5-flash": {
+      "provider": "google",
+      "providerModelId": null,
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "inputPerMtok": 1.50,
+      "outputPerMtok": 9.00,
+      "verified": false,
+      "source": "live-model-cost-token-plan.md (Standard paid tier; output incl. thinking). Reconfirm at https://ai.google.dev/gemini-api/docs/pricing on run day.",
+      "priceIncludesThinkingInOutput": true
+    },
+    "gpt-5.5-fast-high": {
+      "provider": "openai",
+      "providerModelId": null,
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "inputPerMtok": null,
+      "outputPerMtok": null,
+      "verified": false,
+      "source": "TBD — fill providerModelId + price from https://platform.openai.com/docs/pricing on run day. Do not guess."
+    },
+    "claude-opus-4.8": {
+      "provider": "anthropic",
+      "providerModelId": null,
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "inputPerMtok": null,
+      "outputPerMtok": null,
+      "verified": false,
+      "source": "TBD — fill providerModelId + price from https://docs.anthropic.com/en/docs/about-claude/pricing on run day. Do not guess."
+    }
+  }
+}
