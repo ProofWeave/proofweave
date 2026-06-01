@@ -24,13 +24,18 @@ export interface AttestationRecord {
 
 export interface SearchFilters {
   q?: string;          // 범용 검색어 (자동 패턴 감지)
-  domain?: string;     // T3: 메타데이터 도메인 필터
-  problemType?: string; // T3: 메타데이터 문제 유형 필터
+  domain?: string | string[];     // T3: 메타데이터 도메인 필터 (멀티 지원)
+  problemType?: string | string[]; // T3: 메타데이터 문제 유형 필터 (멀티 지원)
   creator?: string;
   aiModel?: string;
+  price?: "all" | "free" | "paid"; // 가격 필터 (server-side)
   limit?: number;
   offset?: number;
 }
+
+/** subquery 가격 식 — WHERE/SELECT에서 동일하게 사용 */
+const PRICE_EXPR =
+  "COALESCE((SELECT pp.price_usd_micros FROM pricing_policies pp WHERE pp.attestation_id = attestations.attestation_id), 0)";
 
 export interface SearchResult {
   attestations: AttestationRecord[];
@@ -423,14 +428,31 @@ export async function searchAttestations(
     params.push(filters.aiModel);
   }
 
-  // T3: 메타데이터 필터
-  if (filters.domain) {
-    conditions.push(`metadata->>'domain' = $${paramIdx++}`);
-    params.push(filters.domain);
+  // T3: 메타데이터 필터 (단일 또는 멀티값 → = ANY)
+  const domainList = Array.isArray(filters.domain)
+    ? filters.domain
+    : filters.domain
+      ? [filters.domain]
+      : [];
+  if (domainList.length > 0) {
+    conditions.push(`metadata->>'domain' = ANY($${paramIdx++}::text[])`);
+    params.push(domainList);
   }
-  if (filters.problemType) {
-    conditions.push(`metadata->>'problemType' = $${paramIdx++}`);
-    params.push(filters.problemType);
+  const problemTypeList = Array.isArray(filters.problemType)
+    ? filters.problemType
+    : filters.problemType
+      ? [filters.problemType]
+      : [];
+  if (problemTypeList.length > 0) {
+    conditions.push(`metadata->>'problemType' = ANY($${paramIdx++}::text[])`);
+    params.push(problemTypeList);
+  }
+
+  // 가격 필터 (server-side, 파라미터 없는 subquery 비교)
+  if (filters.price === "free") {
+    conditions.push(`${PRICE_EXPR} = 0`);
+  } else if (filters.price === "paid") {
+    conditions.push(`${PRICE_EXPR} > 0`);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -452,7 +474,7 @@ export async function searchAttestations(
     `SELECT attestation_id, content_hash, creator, ai_model, offchain_ref,
             block_number, block_timestamp, tx_hash, created_at,
             metadata, keywords, metadata_status,
-            COALESCE((SELECT pp.price_usd_micros FROM pricing_policies pp WHERE pp.attestation_id = attestations.attestation_id), 0) AS price_usd_micros
+            ${PRICE_EXPR} AS price_usd_micros
      FROM attestations ${where}
      ORDER BY created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,

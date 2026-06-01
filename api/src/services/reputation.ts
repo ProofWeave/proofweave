@@ -1,4 +1,5 @@
 import { pool } from "./db.js";
+import { EVM_TX_HASH_REGEX_SOURCE } from "../utils/tx.js";
 
 export type ReputationRating = "useful" | "not_useful";
 export type ReputationTrustTier = "verified" | "unverified";
@@ -89,10 +90,11 @@ export async function submitReputation(params: {
          AND payer = ANY($2::text[])
          AND vault_receipt_ref IS NOT NULL
          AND vault_receipt_ref <> ''
+         AND vault_tx_hash ~ $3
          AND (expires_at IS NULL OR expires_at > NOW())
        ORDER BY paid_at DESC
        LIMIT 1`,
-      [params.attestationId, receiptPayers]
+      [params.attestationId, receiptPayers, EVM_TX_HASH_REGEX_SOURCE]
     );
     if (receipt.rows.length === 0) {
       throw new ReputationError("UNPURCHASED", "paid artifact reputation requires a vault-backed receipt");

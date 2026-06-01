@@ -15,6 +15,7 @@ import {
   submitReputation,
   type ReputationRating,
 } from "../services/reputation.js";
+import { getReceiptById } from "../services/receipt.js";
 
 export const attestationsRouter = Router();
 
@@ -71,6 +72,9 @@ attestationsRouter.get("/attestations/:id/detail", authenticate, x402Gate, async
         console.error("[GET /attestations/:id/detail] Failed to record reuse:", analyticsErr);
       }
     }
+    const accessReceipt = req.accessContext?.receiptId
+      ? await getReceiptById(req.accessContext.receiptId)
+      : null;
 
     res.status(200).json({
       attestationId: attestation.attestationId,
@@ -78,6 +82,16 @@ attestationsRouter.get("/attestations/:id/detail", authenticate, x402Gate, async
       creator: attestation.creator,
       aiModel: attestation.aiModel,
       txHash: attestation.txHash,
+      payment: accessReceipt
+        ? {
+            accessType: req.accessContext?.accessType ?? "receipt",
+            receiptId: accessReceipt.receiptId,
+            vaultTxHash: accessReceipt.vaultTxHash,
+            vaultReceiptRef: accessReceipt.vaultReceiptRef,
+            amountUsdMicros: accessReceipt.amountUsdMicros,
+            creatorAddress: accessReceipt.creatorAddress,
+          }
+        : null,
       data: plaintext,
     });
   } catch (err: unknown) {
@@ -221,19 +235,28 @@ attestationsRouter.get("/search/facets", authenticate, async (_req, res) => {
  * Query: ?creator=0x...&aiModel=gpt-4o&limit=20&offset=0
  */
 attestationsRouter.get("/search", authenticate, async (req, res) => {
-  const { q, domain, problemType, creator, aiModel, limit, offset } = req.query;
+  const { q, domain, problemType, creator, aiModel, price, limit, offset } = req.query;
 
   // limit/offset 입력 검증
   const parsedLimit = limit ? Math.min(Math.max(Number(limit) || 10, 1), 100) : 10;
   const parsedOffset = offset ? Math.max(Number(offset) || 0, 0) : 0;
 
+  // 쉼표 구분 멀티값 파싱
+  const parseList = (v: unknown): string[] | undefined => {
+    if (typeof v !== "string" || !v.trim()) return undefined;
+    const list = v.split(",").map((s) => s.trim()).filter(Boolean);
+    return list.length > 0 ? list : undefined;
+  };
+  const parsedPrice = price === "free" || price === "paid" ? price : undefined;
+
   try {
     const result = await searchAttestations({
       q: q as string | undefined,
-      domain: domain as string | undefined,
-      problemType: problemType as string | undefined,
+      domain: parseList(domain),
+      problemType: parseList(problemType),
       creator: creator as string | undefined,
       aiModel: aiModel as string | undefined,
+      price: parsedPrice,
       limit: parsedLimit,
       offset: parsedOffset,
     });

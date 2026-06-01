@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { recordLlmUsage, usdToMicros } from "../services/analytics.js";
+import { recordPromptHistory } from "./promptHistory.js";
 
 export const aiRouter = Router();
 
@@ -212,6 +213,18 @@ aiRouter.post("/ai/analyze", authenticate, async (req, res) => {
         console.error("[ai/analyze] Failed to record LLM usage:", analyticsErr);
       }
     }
+
+    // 사용자 프롬프트 기록 영속화 (세션 간 유지) — 실패해도 분석 응답은 진행
+    await recordPromptHistory({
+      owner: userKey,
+      prompt,
+      model: modelId,
+      result: text,
+      inputTokens,
+      outputTokens,
+      estimatedCostUsdMicros,
+      llmUsageEventId: usageEventId,
+    });
 
     // Google Search grounding 메타데이터 추출
     const grounding = response.candidates?.[0]?.groundingMetadata;

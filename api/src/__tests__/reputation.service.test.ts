@@ -72,6 +72,7 @@ describe("reputation.service", () => {
     expect(mockQuery.mock.calls[2][1]).toEqual([
       ATTESTATION_ID,
       [BUYER.toLowerCase(), "web:user@example.com"],
+      "^0x[0-9a-fA-F]{64}$",
     ]);
   });
 
