@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ProofWeave — The Marketplace for Verifiable Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ============================ NAV ============================ -->
+<nav class="nav">
+  <div class="nav__in">
+    <a class="brand" href="#top">
+      <span class="brand__mark"></span>
+      ProofWeave
+    </a>
+    <div class="nav__links">
+      <span class="nav__set" style="display:flex; gap:var(--s5); align-items:center;">
+        <a href="#how">How it works</a>
+        <a href="#market">Marketplace</a>
+      </span>
+      <a class="btn btn--primary" href="#">데이터 등록</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero" id="top">
+  <div id="globe" aria-hidden="true"></div>
+  <div class="hero__in">
+    <div class="hero__grid">
+      <div class="hero__copy">
+        <span class="eyebrow">ProofWeave · Data Provenance Network</span>
+        <h1>검증 가능한<br />데이터의 <span class="accent">마켓플레이스</span></h1>
+        <div class="hero__en">The Marketplace for Verifiable Data</div>
+        <p class="hero__sub">
+          데이터를 등록하고, 출처를 증명하고, 신뢰할 수 있는 거래로 연결합니다.
+        </p>
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="#">데이터 등록하기 →</a>
+          <a class="btn btn--ghost" href="#market">마켓플레이스 둘러보기</a>
+        </div>
+        <div class="hero__stats">
+          <div class="hero__stat"><div class="n">1.24M+</div><div class="l">Datasets</div></div>
+          <div class="hero__stat"><div class="n">48</div><div class="l">Categories</div></div>
+          <div class="hero__stat"><div class="n">100%</div><div class="l">Verifiable</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ HOW IT WORKS ============================ -->
+<section class="section" id="how">
+  <div class="wrap">
+    <div class="section__head">
+      <span class="eyebrow">How it works</span>
+      <h2>등록에서 거래까지, 세 단계</h2>
+      <p>모든 데이터셋은 동일한 증명 파이프라인을 통과합니다 — 출처가 증명되지 않은 데이터는 거래되지 않습니다.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step__n">01</div>
+        <svg class="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4" /><path d="M8 8l4-4 4 4" />
+          <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+        </svg>
+        <h3>등록<span class="en">Register</span></h3>
+        <p>데이터셋을 업로드하면 스키마와 메타데이터에 고유 지문(fingerprint)이 부여되고 네트워크에 기록됩니다.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">02</div>
+        <svg class="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <h3>검증<span class="en">Verify</span></h3>
+        <p>영지식 증명으로 원본 데이터를 노출하지 않고 출처·무결성·소유권을 입증합니다.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">03</div>
+        <svg class="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 8h13" /><path d="M14 5l3 3-3 3" />
+          <path d="M20 16H7" /><path d="M10 13l-3 3 3 3" />
+        </svg>
+        <h3>거래<span class="en">Trade</span></h3>
+        <p>검증된 데이터셋을 마켓플레이스에 게시하고, 접근 권한을 단위로 안전하게 거래합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ MARKETPLACE ============================ -->
+<section class="section" id="market">
+  <div class="wrap">
+    <div class="market__head">
+      <div class="section__head" style="margin-bottom:0;">
+        <span class="eyebrow">Marketplace</span>
+        <h2>지금 거래되는 데이터셋</h2>
+        <p>모든 항목은 출처가 검증된 데이터입니다.</p>
+      </div>
+      <a class="btn btn--ghost" href="#">전체 보기 →</a>
+    </div>
+
+    <div class="cards" id="cards"></div>
+  </div>
+</section>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="foot">
+  <div class="wrap foot__in">
+    <a class="brand" href="#top"><span class="brand__mark"></span> ProofWeave</a>
+    <div class="foot__links">
+      <a href="#how">How it works</a>
+      <a href="#market">Marketplace</a>
+      <a href="#">Docs</a>
+    </div>
+    <small>© 2026 ProofWeave · Verifiable Data Network</small>
+  </div>
+</footer>
+
+<!-- ============================ DATA + GLOBE ============================ -->
+<script>
+/* Marketplace cards — placeholder but plausible technical data */
+(function () {
+  var DATA = [
+    { cat: 'Geospatial',    name: 'Global Maritime AIS Vectors',   rec: '320M', fmt: 'GeoParquet', price: '4,200', per: '/mo' },
+    { cat: 'Environmental', name: 'Urban Air Quality — APAC Grid',  rec: '18.4M', fmt: 'NetCDF',     price: '880',   per: '/mo' },
+    { cat: 'Commerce',      name: 'Anonymized Retail POS Streams',  rec: '1.1B',  fmt: 'Avro',       price: '6,500', per: '/mo' },
+    { cat: 'Bio',           name: 'Genomic Variant Annotations v9', rec: '47M',   fmt: 'VCF',        price: '12,000',per: '/yr' },
+    { cat: 'Geospatial',    name: 'Satellite NDVI Tiles — 2020-26', rec: '2.9M',  fmt: 'COG',        price: '1,450', per: '/mo' },
+    { cat: 'Financial',     name: 'On-chain DeFi Liquidity Events', rec: '210M',  fmt: 'Parquet',    price: '3,100', per: '/mo' }
+  ];
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function mkRng(s) { var x = (s * 9301 + 49297) % 233280; return function () { x = (x * 9301 + 49297) % 233280; return x / 233280; }; }
+  function svg(inner) { return '<svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none">' + inner + '</svg>'; }
+
+  // ascending area line
+  function chartLine(seed) {
+    var r = mkRng(seed), n = 28, v = 14 + r() * 6, pts = [];
+    for (var i = 0; i < n; i++) { v += (r() - 0.38) * 4; v = clamp(v, 5, 35); pts.push((i / (n - 1) * 100).toFixed(1) + ',' + (40 - v).toFixed(1)); }
+    return svg('<polyline points="0,40 ' + pts.join(' ') + ' 100,40" fill="rgba(116,190,180,0.10)" stroke="none"/>' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#74BEB4" stroke-width="1.4" vector-effect="non-scaling-stroke"/>');
+  }
+  // volume bars
+  function chartBars(seed) {
+    var r = mkRng(seed), n = 18, gap = 100 / n, bw = gap * 0.6, out = '';
+    for (var i = 0; i < n; i++) { var h = 5 + r() * 31; out += '<rect x="' + (i * gap + (gap - bw) / 2).toFixed(1) + '" y="' + (40 - h).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + (i % 5 === 4 ? '#22D3EE' : '#52ADA1') + '" opacity="0.85"/>'; }
+    return svg(out);
+  }
+  // stepped line
+  function chartStep(seed) {
+    var r = mkRng(seed), n = 12, v = 18 + r() * 6, pts = ['0,' + (40 - v).toFixed(1)];
+    for (var i = 1; i <= n; i++) { var nx = (i / n * 100).toFixed(1); pts.push(nx + ',' + (40 - v).toFixed(1)); v += (r() - 0.4) * 9; v = clamp(v, 6, 34); pts.push(nx + ',' + (40 - v).toFixed(1)); }
+    return svg('<polyline points="0,40 ' + pts.join(' ') + ' 100,40" fill="rgba(151,206,199,0.08)" stroke="none"/>' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#97CEC7" stroke-width="1.3" vector-effect="non-scaling-stroke"/>');
+  }
+  // confidence band (min/max envelope + mid line)
+  function chartBand(seed) {
+    var r = mkRng(seed), n = 24, up = [], lo = [], mid = [], v = 20;
+    for (var i = 0; i < n; i++) { v += (r() - 0.45) * 4; v = clamp(v, 9, 31); var sp = 3 + r() * 5, cx = (i / (n - 1) * 100).toFixed(1); up.push(cx + ',' + (40 - (v + sp)).toFixed(1)); lo.push(cx + ',' + (40 - (v - sp)).toFixed(1)); mid.push(cx + ',' + (40 - v).toFixed(1)); }
+    return svg('<polygon points="' + up.concat(lo.reverse()).join(' ') + '" fill="rgba(116,190,180,0.14)" stroke="none"/>' +
+      '<polyline points="' + mid.join(' ') + '" fill="none" stroke="#97CEC7" stroke-width="1.2" vector-effect="non-scaling-stroke"/>');
+  }
+  // seasonal wave
+  function chartWave(seed) {
+    var r = mkRng(seed), n = 44, pts = [], ph = r() * 6;
+    for (var i = 0; i < n; i++) { var v = 20 + Math.sin(i / n * Math.PI * 4 + ph) * 10 * (0.55 + 0.45 * r()); v = clamp(v, 5, 35); pts.push((i / (n - 1) * 100).toFixed(1) + ',' + (40 - v).toFixed(1)); }
+    return svg('<polyline points="0,40 ' + pts.join(' ') + ' 100,40" fill="rgba(34,211,238,0.07)" stroke="none"/>' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#74BEB4" stroke-width="1.3" vector-effect="non-scaling-stroke"/>');
+  }
+  // candlesticks
+  function chartCandle(seed) {
+    var r = mkRng(seed), n = 11, gap = 100 / n, bw = gap * 0.42, c = 20, out = '';
+    for (var i = 0; i < n; i++) {
+      var o = c, cl = clamp(c + (r() - 0.5) * 11, 6, 34), hi = Math.max(o, cl) + r() * 4, lo = Math.min(o, cl) - r() * 4, cx = i * gap + gap / 2, color = cl >= o ? '#22D3EE' : '#418B81';
+      out += '<line x1="' + cx.toFixed(1) + '" y1="' + (40 - hi).toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + (40 - lo).toFixed(1) + '" stroke="' + color + '" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+      out += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + (40 - Math.max(o, cl)).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(1.5, Math.abs(cl - o)).toFixed(1) + '" fill="' + color + '"/>';
+      c = cl;
+    }
+    return svg(out);
+  }
+  var CHARTS = [chartStep, chartBars, chartLine, chartBand, chartWave, chartCandle];
+  var check = '<svg viewBox="0 0 24 24" fill="none" stroke="#97CEC7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>';
+  var html = DATA.map(function (d, i) {
+    return '<div class="card">' +
+      '<div class="card__top"><span class="tag">' + d.cat + '</span>' +
+      '<span class="verified">' + check + 'Verified</span></div>' +
+      '<h4>' + d.name + '</h4>' +
+      CHARTS[i % CHARTS.length](i * 17 + 5) +
+      '<div class="card__meta"><div>Records<b>' + d.rec + '</b></div><div>Format<b>' + d.fmt + '</b></div></div>' +
+      '<div class="card__foot"><span class="price">$' + d.price + ' <span>' + d.per + '</span></span>' +
+      '<a class="card__view" href="#">View →</a></div>' +
+      '</div>';
+  }).join('');
+  document.getElementById('cards').innerHTML = html;
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="globe.js"></script>
+
+</body>
+</html>

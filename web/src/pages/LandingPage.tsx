@@ -1,177 +1,213 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { ArrowRight, Shield, Database, Cpu } from 'lucide-react';
+import { useAuth } from '../contexts/auth-core';
+import GlobeCanvas from '../components/landing/GlobeCanvas';
+import '../styles/landing.css';
 
-/* ── Organic Blob Loaders (pure CSS animations) ──────────────── */
+/* Placeholder marketplace showcase from the design bundle. These are
+   illustrative dataset examples, NOT live ProofWeave listings — wire to real
+   featured attestations during the Explorer pass (Part 2). */
+const SAMPLE_DATASETS = [
+  { cat: 'Geospatial', name: 'Global Maritime AIS Vectors', rec: '320M', fmt: 'GeoParquet', price: '4,200', per: '/mo' },
+  { cat: 'Environmental', name: 'Urban Air Quality — APAC Grid', rec: '18.4M', fmt: 'NetCDF', price: '880', per: '/mo' },
+  { cat: 'Commerce', name: 'Anonymized Retail POS Streams', rec: '1.1B', fmt: 'Avro', price: '6,500', per: '/mo' },
+  { cat: 'Bio', name: 'Genomic Variant Annotations v9', rec: '47M', fmt: 'VCF', price: '12,000', per: '/yr' },
+  { cat: 'Geospatial', name: 'Satellite NDVI Tiles — 2020-26', rec: '2.9M', fmt: 'COG', price: '1,450', per: '/mo' },
+  { cat: 'Financial', name: 'On-chain DeFi Liquidity Events', rec: '210M', fmt: 'Parquet', price: '3,100', per: '/mo' },
+];
 
-function BlobMorph({ size, delay, duration, x, y }: {
-  size: number; delay: number; duration: number; x: string; y: string;
-}) {
-  return (
-    <div
-      className="landing-blob"
-      style={{
-        width: size,
-        height: size,
-        left: x,
-        top: y,
-        animationDelay: `${delay}s`,
-        animationDuration: `${duration}s`,
-      }}
-    />
-  );
+/* Seeded sparklines (ported from the design) — deterministic per card so they
+   stay stable across re-renders. Each returns SVG inner markup. */
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+function mkRng(s: number) {
+  let x = (s * 9301 + 49297) % 233280;
+  return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
 }
-
-function OrbitDots({ x, y, delay }: { x: string; y: string; delay: number }) {
-  return (
-    <div className="landing-orbit" style={{ left: x, top: y, animationDelay: `${delay}s` }}>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <div
-          key={i}
-          className="landing-orbit__dot"
-          style={{
-            transform: `rotate(${i * 72}deg) translateX(20px)`,
-            animationDelay: `${delay + i * 0.15}s`,
-          }}
-        />
-      ))}
-    </div>
-  );
+function chartLine(seed: number) {
+  const r = mkRng(seed), n = 28, pts: string[] = [];
+  let v = 14 + r() * 6;
+  for (let i = 0; i < n; i++) { v += (r() - 0.38) * 4; v = clamp(v, 5, 35); pts.push((i / (n - 1) * 100).toFixed(1) + ',' + (40 - v).toFixed(1)); }
+  return `<polyline points="0,40 ${pts.join(' ')} 100,40" fill="rgba(116,190,180,0.10)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#74BEB4" stroke-width="1.4" vector-effect="non-scaling-stroke"/>`;
 }
-
-function PulseRing({ x, y, delay }: { x: string; y: string; delay: number }) {
-  return (
-    <div className="landing-pulse-ring" style={{ left: x, top: y, animationDelay: `${delay}s` }}>
-      <div className="landing-pulse-ring__inner" />
-    </div>
-  );
+function chartBars(seed: number) {
+  const r = mkRng(seed), n = 18, gap = 100 / n, bw = gap * 0.6;
+  let out = '';
+  for (let i = 0; i < n; i++) { const h = 5 + r() * 31; out += `<rect x="${(i * gap + (gap - bw) / 2).toFixed(1)}" y="${(40 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${i % 5 === 4 ? '#22D3EE' : '#52ADA1'}" opacity="0.85"/>`; }
+  return out;
 }
-
-function FloatingDot({ x, y, size, delay }: {
-  x: string; y: string; size: number; delay: number;
-}) {
-  return (
-    <div
-      className="landing-float-dot"
-      style={{ left: x, top: y, width: size, height: size, animationDelay: `${delay}s` }}
-    />
-  );
+function chartStep(seed: number) {
+  const r = mkRng(seed), n = 12;
+  let v = 18 + r() * 6;
+  const pts: string[] = ['0,' + (40 - v).toFixed(1)];
+  for (let i = 1; i <= n; i++) { const nx = (i / n * 100).toFixed(1); pts.push(nx + ',' + (40 - v).toFixed(1)); v += (r() - 0.4) * 9; v = clamp(v, 6, 34); pts.push(nx + ',' + (40 - v).toFixed(1)); }
+  return `<polyline points="0,40 ${pts.join(' ')} 100,40" fill="rgba(151,206,199,0.08)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#97CEC7" stroke-width="1.3" vector-effect="non-scaling-stroke"/>`;
 }
-
-/* ── Landing Page ────────────────────────────────────────────── */
+function chartBand(seed: number) {
+  const r = mkRng(seed), n = 24, up: string[] = [], lo: string[] = [], mid: string[] = [];
+  let v = 20;
+  for (let i = 0; i < n; i++) { v += (r() - 0.45) * 4; v = clamp(v, 9, 31); const sp = 3 + r() * 5, cx = (i / (n - 1) * 100).toFixed(1); up.push(cx + ',' + (40 - (v + sp)).toFixed(1)); lo.push(cx + ',' + (40 - (v - sp)).toFixed(1)); mid.push(cx + ',' + (40 - v).toFixed(1)); }
+  return `<polygon points="${up.concat(lo.reverse()).join(' ')}" fill="rgba(116,190,180,0.14)" stroke="none"/><polyline points="${mid.join(' ')}" fill="none" stroke="#97CEC7" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+}
+function chartWave(seed: number) {
+  const r = mkRng(seed), n = 44, pts: string[] = [], ph = r() * 6;
+  for (let i = 0; i < n; i++) { let v = 20 + Math.sin(i / n * Math.PI * 4 + ph) * 10 * (0.55 + 0.45 * r()); v = clamp(v, 5, 35); pts.push((i / (n - 1) * 100).toFixed(1) + ',' + (40 - v).toFixed(1)); }
+  return `<polyline points="0,40 ${pts.join(' ')} 100,40" fill="rgba(34,211,238,0.07)" stroke="none"/><polyline points="${pts.join(' ')}" fill="none" stroke="#74BEB4" stroke-width="1.3" vector-effect="non-scaling-stroke"/>`;
+}
+function chartCandle(seed: number) {
+  const r = mkRng(seed), n = 11, gap = 100 / n, bw = gap * 0.42;
+  let c = 20, out = '';
+  for (let i = 0; i < n; i++) {
+    const o = c, cl = clamp(c + (r() - 0.5) * 11, 6, 34), hi = Math.max(o, cl) + r() * 4, lo = Math.min(o, cl) - r() * 4, cx = i * gap + gap / 2, color = cl >= o ? '#22D3EE' : '#418B81';
+    out += `<line x1="${cx.toFixed(1)}" y1="${(40 - hi).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${(40 - lo).toFixed(1)}" stroke="${color}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    out += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(40 - Math.max(o, cl)).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1.5, Math.abs(cl - o)).toFixed(1)}" fill="${color}"/>`;
+    c = cl;
+  }
+  return out;
+}
+const CHARTS = [chartStep, chartBars, chartLine, chartBand, chartWave, chartCandle];
 
 export function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleGetStarted = () => {
-    if (user) {
-      navigate('/dashboard');
-    } else {
-      navigate('/login');
-    }
-  };
+  // keep the viewport dark while the landing is mounted (no warm-theme flash)
+  useEffect(() => {
+    document.documentElement.classList.add('pw-land-active');
+    return () => document.documentElement.classList.remove('pw-land-active');
+  }, []);
+
+  const enterApp = () => navigate(user ? '/dashboard' : '/login');
 
   return (
-    <div className="landing">
-      {/* ── Floating Organic Elements ── */}
-      <div className="landing-canvas" aria-hidden="true">
-        <BlobMorph size={120} delay={0} duration={8} x="10%" y="15%" />
-        <BlobMorph size={80} delay={1.5} duration={10} x="75%" y="10%" />
-        <BlobMorph size={60} delay={3} duration={7} x="85%" y="60%" />
-        <BlobMorph size={100} delay={2} duration={9} x="5%" y="70%" />
-        <BlobMorph size={50} delay={4} duration={11} x="60%" y="80%" />
-        <BlobMorph size={40} delay={0.5} duration={6} x="40%" y="5%" />
+    <div className="pw-land">
+      {/* ── NAV ── */}
+      <nav className="nav">
+        <div className="nav__in">
+          <a className="brand" href="#top"><span className="brand__mark" />ProofWeave</a>
+          <div className="nav__links">
+            <span className="nav__set" style={{ display: 'flex', gap: 'var(--s5)', alignItems: 'center' }}>
+              <a href="#how">How it works</a>
+              <a href="#market">Marketplace</a>
+            </span>
+            <button className="btn btn--primary" onClick={enterApp}>{user ? '대시보드' : '시작하기'}</button>
+          </div>
+        </div>
+      </nav>
 
-        <OrbitDots x="25%" y="30%" delay={0} />
-        <OrbitDots x="70%" y="40%" delay={1} />
+      {/* ── HERO ── */}
+      <header className="hero" id="top">
+        <GlobeCanvas />
+        <div className="hero__in">
+          <div className="hero__grid">
+            <div className="hero__copy">
+              <span className="eyebrow">ProofWeave · Data Provenance Network</span>
+              <h1>검증 가능한<br />데이터의 <span className="accent">마켓플레이스</span></h1>
+              <div className="hero__en">The Marketplace for Verifiable Data</div>
+              <p className="hero__sub">
+                데이터를 등록하고, 출처를 증명하고, 신뢰할 수 있는 거래로 연결합니다.
+              </p>
+              <div className="hero__cta">
+                <button className="btn btn--primary" onClick={enterApp}>데이터 등록하기 →</button>
+                <a className="btn btn--ghost" href="#market">마켓플레이스 둘러보기</a>
+              </div>
+              <div className="hero__stats">
+                <div className="hero__stat"><div className="n">On-chain</div><div className="l">Provenance proof</div></div>
+                <div className="hero__stat"><div className="n">E2E</div><div className="l">Encrypted access</div></div>
+                <div className="hero__stat"><div className="n">x402</div><div className="l">USDC payments</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
 
-        <PulseRing x="50%" y="20%" delay={0} />
-        <PulseRing x="15%" y="50%" delay={2} />
-        <PulseRing x="80%" y="75%" delay={1.5} />
-
-        <FloatingDot x="30%" y="60%" size={12} delay={0} />
-        <FloatingDot x="55%" y="45%" size={8} delay={0.8} />
-        <FloatingDot x="45%" y="75%" size={10} delay={1.5} />
-        <FloatingDot x="20%" y="85%" size={6} delay={2.2} />
-        <FloatingDot x="65%" y="25%" size={14} delay={0.3} />
-        <FloatingDot x="90%" y="30%" size={7} delay={1.8} />
-      </div>
-
-      {/* ── Content ── */}
-      <div className="landing-content">
-        {/* Logo + Hero */}
-        <div className="landing-hero">
-          <div className="landing-logo">
-            <div className="landing-logo__icon">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <rect width="48" height="48" rx="12" fill="#22181C" />
-                <path
-                  d="M14 24C14 18.477 18.477 14 24 14V14C29.523 14 34 18.477 34 24V24C34 29.523 29.523 34 24 34V34"
-                  stroke="#F6E8EA"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <circle cx="24" cy="24" r="4" fill="#8B3A4A" />
-                <path
-                  d="M24 34C18.477 34 14 29.523 14 24"
-                  stroke="#8B3A4A"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray="4 6"
-                />
+      {/* ── HOW IT WORKS ── */}
+      <section className="section" id="how">
+        <div className="wrap">
+          <div className="section__head">
+            <span className="eyebrow">How it works</span>
+            <h2>등록에서 거래까지, 세 단계</h2>
+            <p>모든 데이터는 동일한 증명 파이프라인을 통과합니다 — 출처가 증명되지 않은 데이터는 거래되지 않습니다.</p>
+          </div>
+          <div className="steps">
+            <div className="step">
+              <div className="step__n">01</div>
+              <svg className="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4" /><path d="M8 8l4-4 4 4" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
               </svg>
+              <h3>등록<span className="en">Register</span></h3>
+              <p>AI 분석 결과를 업로드하면 콘텐츠 해시와 메타데이터가 온체인 어테스테이션으로 기록됩니다.</p>
             </div>
-            <h1 className="landing-logo__text">ProofWeave</h1>
-          </div>
-
-          <p className="landing-tagline">
-            AI 데이터의 진위를 증명하고,<br />
-            안전하게 거래하세요.
-          </p>
-
-          <p className="landing-description">
-            블록체인 기반 데이터 증명 · 암호화 저장 · 탈중앙 마켓플레이스
-          </p>
-
-          <button className="landing-cta" onClick={handleGetStarted}>
-            {user ? '대시보드로 이동' : '시작하기'}
-            <ArrowRight size={18} />
-          </button>
-        </div>
-
-        {/* Features */}
-        <div className="landing-features">
-          <div className="landing-feature">
-            <div className="landing-feature__icon">
-              <Shield size={24} />
+            <div className="step">
+              <div className="step__n">02</div>
+              <svg className="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /><path d="M9 12l2 2 4-4" />
+              </svg>
+              <h3>검증<span className="en">Verify</span></h3>
+              <p>누구나 온체인 기록과 콘텐츠 해시를 대조해 출처·무결성·소유권을 검증할 수 있습니다.</p>
             </div>
-            <h3>온체인 증명</h3>
-            <p>AI 분석 데이터를 블록체인에 변조 불가능하게 기록합니다.</p>
-          </div>
-
-          <div className="landing-feature">
-            <div className="landing-feature__icon">
-              <Database size={24} />
+            <div className="step">
+              <div className="step__n">03</div>
+              <svg className="step__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 8h13" /><path d="M14 5l3 3-3 3" /><path d="M20 16H7" /><path d="M10 13l-3 3 3 3" />
+              </svg>
+              <h3>거래<span className="en">Trade</span></h3>
+              <p>검증된 데이터를 마켓플레이스에 게시하고 x402·USDC로 접근 권한을 안전하게 거래합니다.</p>
             </div>
-            <h3>E2E 암호화</h3>
-            <p>IPFS에 봉투 암호화로 저장하여 소유자만 접근할 수 있습니다.</p>
-          </div>
-
-          <div className="landing-feature">
-            <div className="landing-feature__icon">
-              <Cpu size={24} />
-            </div>
-            <h3>AI 메타데이터</h3>
-            <p>LLM이 자동으로 도메인, 키워드, 요약을 추출합니다.</p>
           </div>
         </div>
+      </section>
 
-        {/* Footer */}
-        <footer className="landing-footer">
-          <span>Built with Abstract · IPFS · AI</span>
-        </footer>
-      </div>
+      {/* ── MARKETPLACE ── */}
+      <section className="section" id="market">
+        <div className="wrap">
+          <div className="market__head">
+            <div className="section__head" style={{ marginBottom: 0 }}>
+              <span className="eyebrow">Marketplace</span>
+              <h2>출처가 검증된 데이터셋</h2>
+              <p>모든 항목은 게시 전 온체인 출처가 검증됩니다.</p>
+            </div>
+            <button className="btn btn--ghost" onClick={enterApp}>전체 보기 →</button>
+          </div>
+
+          <div className="cards">
+            {SAMPLE_DATASETS.map((d, i) => (
+              <div className="card" key={d.name}>
+                <div className="card__top">
+                  <span className="tag">{d.cat}</span>
+                  <span className="verified">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#97CEC7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /><path d="M9 12l2 2 4-4" />
+                    </svg>
+                    Verified
+                  </span>
+                </div>
+                <h4>{d.name}</h4>
+                <svg className="spark" viewBox="0 0 100 40" preserveAspectRatio="none" dangerouslySetInnerHTML={{ __html: CHARTS[i % CHARTS.length](i * 17 + 5) }} />
+                <div className="card__meta">
+                  <div>Records<b>{d.rec}</b></div>
+                  <div>Format<b>{d.fmt}</b></div>
+                </div>
+                <div className="card__foot">
+                  <span className="price">${d.price} <span>{d.per}</span></span>
+                  <button className="card__view" onClick={enterApp}>View →</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="foot">
+        <div className="wrap foot__in">
+          <a className="brand" href="#top"><span className="brand__mark" /> ProofWeave</a>
+          <div className="foot__links">
+            <a href="#how">How it works</a>
+            <a href="#market">Marketplace</a>
+          </div>
+          <small>© 2026 ProofWeave · Verifiable Data Network</small>
+        </div>
+      </footer>
     </div>
   );
 }
