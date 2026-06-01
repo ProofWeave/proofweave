@@ -7,7 +7,17 @@ import { useAccount, useConnect, useWriteContract, useWaitForTransactionReceipt,
 import { parseUnits, formatUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import { api, ApiError } from '../lib/api';
+import { basescanTxUrl, isEvmTxHash } from '../lib/tx';
 import { VAULT_ADDRESS, CLAIM_ABI, USDC_DECIMALS } from '../config/wagmi';
+
+interface ClaimHistoryRow {
+  id: string;
+  amountUsd: string;
+  recipient: string;
+  txHash: string;
+  chainId: number;
+  createdAt: string;
+}
 
 interface ClaimStatus {
   creator: string | null;
@@ -38,8 +48,6 @@ type ActionState =
   | { kind: 'success'; txHash: string }
   | { kind: 'error'; message: string };
 
-const BASESCAN = 'https://sepolia.basescan.org';
-
 /** 6-decimal base units(string) → 사람이 읽는 USDC 문자열 */
 function formatUsdc(baseUnits: string | null): string {
   if (baseUnits === null) return '—';
@@ -62,6 +70,13 @@ export function ClaimsPage() {
   const [recipient, setRecipient] = useState('');
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
   const [addrCopied, setAddrCopied] = useState(false);
+  const [claimHistory, setClaimHistory] = useState<ClaimHistoryRow[]>([]);
+
+  const loadHistory = useCallback(() => {
+    api.get<{ claims: ClaimHistoryRow[] }>('/claims/history')
+      .then((data) => setClaimHistory(data.claims || []))
+      .catch(() => {});
+  }, []);
 
   // EOA 직접 서명 경로용 wagmi 훅 (웹/CDP 경로는 백엔드가 실행하므로 미사용)
   const { address: connected, isConnected, chain } = useAccount();
@@ -88,7 +103,8 @@ export function ClaimsPage() {
 
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+    loadHistory();
+  }, [loadStatus, loadHistory]);
 
   // EOA 경로: 트랜잭션 확정 후 잔액 갱신
   useEffect(() => {
@@ -96,8 +112,9 @@ export function ClaimsPage() {
       setAction({ kind: 'success', txHash: eoaTxHash });
       setAmount('');
       loadStatus();
+      loadHistory();
     }
-  }, [isConfirmed, eoaTxHash, loadStatus]);
+  }, [isConfirmed, eoaTxHash, loadStatus, loadHistory]);
 
   const claimableBase = status?.onchain.claimableBaseUnits
     ? BigInt(status.onchain.claimableBaseUnits)
@@ -146,9 +163,13 @@ export function ClaimsPage() {
         amount: amountBase.toString(),
         to: recipient.trim(),
       });
+      if (!isEvmTxHash(res.txHash)) {
+        throw new Error('서버가 온체인 트랜잭션 해시를 반환하지 않았습니다.');
+      }
       setAction({ kind: 'success', txHash: res.txHash });
       setAmount('');
       await loadStatus();
+      loadHistory();
     } catch (err) {
       setAction({
         kind: 'error',
@@ -394,15 +415,17 @@ export function ClaimsPage() {
               <div className="flex items-center gap-8 mt-12" style={{ color: 'var(--success, #30a46c)' }}>
                 <CheckCircle2 size={16} />
                 <span className="text-sm">Claim 완료</span>
-                <a
-                  href={`${BASESCAN}/tx/${action.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary btn-sm"
-                  style={{ textDecoration: 'none', padding: '2px 8px' }}
-                >
-                  <ExternalLink size={12} /> BaseScan
-                </a>
+                {isEvmTxHash(action.txHash) && (
+                  <a
+                    href={basescanTxUrl(action.txHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary btn-sm"
+                    style={{ textDecoration: 'none', padding: '2px 8px' }}
+                  >
+                    <ExternalLink size={12} /> BaseScan
+                  </a>
+                )}
               </div>
             )}
             {action.kind === 'error' && (
@@ -419,11 +442,11 @@ export function ClaimsPage() {
           <span className="font-mono">{truncate(status.vaultAddress)}</span>
           <span className="text-muted">· 네트워크</span>
           <span>Base Sepolia ({status.chainId})</span>
-          {status.db.latestVaultTxHash && (
+          {isEvmTxHash(status.db.latestVaultTxHash) && (
             <>
               <span className="text-muted">· 최근 정산</span>
               <a
-                href={`${BASESCAN}/tx/${status.db.latestVaultTxHash}`}
+                href={basescanTxUrl(status.db.latestVaultTxHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -433,6 +456,45 @@ export function ClaimsPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* ═══ Claim 내역 ═══ */}
+      <div className="card mt-16">
+        <div className="card-header">
+          <span className="card-title">
+            <ArrowUpRight size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> Claim 내역
+          </span>
+          <span className="text-xs text-muted">{claimHistory.length}건</span>
+        </div>
+        {claimHistory.length === 0 ? (
+          <p className="text-sm text-muted" style={{ padding: '8px 0' }}>아직 claim 실행 내역이 없습니다.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>금액</th><th>수령 주소</th><th>일시</th><th>Tx</th></tr>
+              </thead>
+              <tbody>
+                {claimHistory.map((c) => (
+                  <tr key={c.id}>
+                    <td className="mono">${c.amountUsd}</td>
+                    <td className="mono text-xs">{truncate(c.recipient)}</td>
+                    <td className="text-xs">
+                      {new Date(c.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td>
+                      {isEvmTxHash(c.txHash) ? (
+                        <a href={basescanTxUrl(c.txHash)} target="_blank" rel="noopener noreferrer" className="link-cyan text-xs">
+                          <ExternalLink size={11} /> {truncate(c.txHash)}
+                        </a>
+                      ) : <span className="text-muted text-xs">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );
