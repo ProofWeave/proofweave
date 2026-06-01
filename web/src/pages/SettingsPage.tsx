@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus, ShoppingBag, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Copy, Check, Key, Wallet, RefreshCw, Link2, Unlink, ArrowUpRight, Loader, Plus, AlertCircle } from 'lucide-react';
 import { useAccount, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { parseUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-core';
 import { api } from '../lib/api';
-import { MyDataSection } from '../components/MyDataSection';
 import { USDC_ADDRESS, USDC_DECIMALS, ERC20_TRANSFER_ABI } from '../config/wagmi';
 
 interface SmartWalletData {
@@ -14,18 +14,9 @@ interface SmartWalletData {
   balanceUsdMicros: number;
 }
 
-interface PurchaseRecord {
-  attestationId: string;
-  amountUsd: string;
-  amountUsdMicros: number;
-  paymentMethod: string;
-  txHash: string;
-  receiptId: string;
-  createdAt: string;
-}
-
 export function SettingsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
   const [walletLoading, setWalletLoading] = useState(true);
@@ -33,8 +24,6 @@ export function SettingsPage() {
   const [chargeAmount, setChargeAmount] = useState('1');
   const [chargeStatus, setChargeStatus] = useState<'idle' | 'confirming' | 'done' | 'error'>('idle');
   const [creating, setCreating] = useState(false);
-  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
-  const [purchasesLoading, setPurchasesLoading] = useState(true);
   const apiKey = api.getApiKey();
 
   // wagmi hooks
@@ -55,14 +44,6 @@ export function SettingsPage() {
     }
     loadWalletInfo();
   }, [apiKey]);
-
-  // 구매 내역 로드
-  useEffect(() => {
-    api.get<{ purchases: PurchaseRecord[] }>('/purchases/history')
-      .then((data) => setPurchases(data.purchases))
-      .catch(() => setPurchases([]))
-      .finally(() => setPurchasesLoading(false));
-  }, []);
 
   // 트랜잭션 확인 후 잔고 갱신
   useEffect(() => {
@@ -146,17 +127,17 @@ export function SettingsPage() {
     }
   };
 
-  const formatUsd = (micros: number) => (micros / 1_000_000).toFixed(6);
+  const formatUsd = (micros: number) => (micros / 1_000_000).toFixed(2);
 
   return (
     <>
       <div className="page-header">
         <h2>Settings</h2>
-        <p>계정 및 API 설정 관리</p>
+        <p>계정 · API · 지갑 설정 — 내 데이터와 구매 내역은 <button className="link-cyan" style={{ border: 'none', background: 'none', cursor: 'pointer', font: 'inherit' }} onClick={() => navigate('/analytics')}>Activity</button>에서 확인하세요.</p>
       </div>
 
-      {/* ═══ Row 1: 계정정보 + Smart Wallet + 외부 지갑 ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
+      {/* ═══ Row 1: 계정정보 + Smart Wallet (2-up, content-aware) ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 16 }}>
 
       {/* 계정 정보 */}
       <div className="card">
@@ -316,8 +297,13 @@ export function SettingsPage() {
                   </button>
                 </div>
                 {chargeStatus === 'done' && (
-                  <p className="text-xs mt-8" style={{ color: 'var(--success)' }}>
-                    ✅ 충전 완료! 잔고가 업데이트되었습니다.
+                  <p className="text-xs mt-8 flex items-center gap-4" style={{ color: 'var(--success)' }}>
+                    <Check size={12} /> 충전 완료! 잔고가 업데이트되었습니다.
+                  </p>
+                )}
+                {chargeStatus === 'error' && (
+                  <p className="text-xs mt-8 flex items-center gap-4" style={{ color: 'var(--error)' }}>
+                    <AlertCircle size={12} /> 충전에 실패했습니다. 네트워크와 잔고를 확인 후 다시 시도하세요.
                   </p>
                 )}
               </div>
@@ -332,71 +318,8 @@ export function SettingsPage() {
 
       </div>{/* end Row 1 */}
 
-      {/* ═══ Row 2: MyData (2/3) + 구매내역 (1/3) ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
-
-      {/* 내 데이터 */}
-      <MyDataSection />
-
-      {/* 구매 내역 */}
-      <div className="card">
-        <div className="flex items-center gap-8 mb-16">
-          <ShoppingBag size={16} style={{ color: 'var(--accent)' }} />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>구매 내역</h3>
-        </div>
-
-        {purchasesLoading ? (
-          <div className="flex items-center gap-8" style={{ padding: 20 }}>
-            <Loader size={16} className="spin" />
-            <span className="text-muted text-sm">불러오는 중...</span>
-          </div>
-        ) : purchases.length === 0 ? (
-          <p className="text-secondary text-sm">기록이 없습니다.</p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Attestation</th>
-                  <th>금액</th>
-                  <th>일자</th>
-                  <th>TX</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.receiptId}>
-                    <td className="mono text-xs">{p.attestationId.slice(0, 6)}...</td>
-                    <td>${p.amountUsd}</td>
-                    <td className="text-xs">
-                      {new Date(p.createdAt).toLocaleDateString('ko-KR', {
-                        month: 'short', day: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </td>
-                    <td>
-                      <a
-                        href={`https://sepolia.basescan.org/tx/${p.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary btn-sm"
-                        style={{ textDecoration: 'none', padding: '2px 8px' }}
-                      >
-                        <ExternalLink size={12} />
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      </div>{/* end Row 2 */}
-
-      {/* ═══ Row 3: API Key (하단) ═══ */}
-      <div className="card">
+      {/* ═══ API Key ═══ */}
+      <div className="card" style={{ marginTop: 8 }}>
         <div className="card-header">
           <span className="card-title">
             <Key size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />

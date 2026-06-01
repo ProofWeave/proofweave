@@ -6,6 +6,7 @@ import {
 import Markdown from 'react-markdown';
 import { api, ApiError, PaymentRequiredError } from '../lib/api';
 import { getReceipt } from '../lib/receiptStore';
+import { basescanTxUrl, isEvmTxHash } from '../lib/tx';
 import { useModalKeyboard, useModalRef } from '../hooks/useModalKeyboard';
 import type { AttestationWithMetadata } from './AttestationCard';
 
@@ -32,6 +33,14 @@ interface DetailData {
   creator?: string;
   aiModel?: string;
   txHash?: string;
+  payment?: {
+    accessType: 'paid' | 'receipt' | 'free';
+    receiptId: string;
+    vaultTxHash: string | null;
+    vaultReceiptRef: string | null;
+    amountUsdMicros: number;
+    creatorAddress: string | null;
+  } | null;
 }
 
 interface ReputationSummary {
@@ -358,9 +367,11 @@ export function AttestationPurchaseModal({
     },
   ];
 
-  const effectiveTxHash = state.step === 'success'
-    ? (state.data.txHash || attestation?.txHash)
-    : attestation?.txHash;
+  const rawAttestationTxHash = attestation?.txHash;
+  const attestationTxHash = isEvmTxHash(rawAttestationTxHash) ? rawAttestationTxHash : null;
+  const effectivePaymentTxHash = state.step === 'success' && isEvmTxHash(state.data.payment?.vaultTxHash)
+    ? state.data.payment.vaultTxHash
+    : null;
 
   const activeReceipt = accessReceipt;
 
@@ -371,6 +382,15 @@ export function AttestationPurchaseModal({
       : settlementStage === 0
         ? '대기'
         : '미진행';
+
+  // 4단계 settlement rail을 한 줄 상태 칩으로 축약 (동기 백엔드라 단계 나열은 인지부하만 가중)
+  const settlementChip = (
+    <div className="settlement-chip mb-16">
+      <span className={`settlement-chip__dot ${settlementStage >= 3 ? 'is-done' : 'is-active'}`} />
+      <span className="settlement-chip__label">x402 결제 · {currentSettlementLabel}</span>
+      <span className="settlement-chip__step mono">{settlementSteps[Math.max(0, Math.min(settlementStage, 3))]?.label ?? ''}</span>
+    </div>
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -482,14 +502,16 @@ export function AttestationPurchaseModal({
                 <FileText size={15} />
                 {isFree ? '데이터 조회' : `구매 및 조회 ($${pricingCache?.amountUsd || '...'})`}
               </button>
-              <a
-                href={`https://sepolia.basescan.org/tx/${attestation.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-secondary"
-              >
-                <ExternalLink size={14} /> Basescan에서 보기
-              </a>
+              {attestationTxHash && (
+                <a
+                  href={basescanTxUrl(attestationTxHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary"
+                >
+                  <ExternalLink size={14} /> Attestation Tx
+                </a>
+              )}
             </div>
           </div>
         )}
@@ -497,29 +519,7 @@ export function AttestationPurchaseModal({
         {/* ── Pricing confirmation (paid) ── */}
         {state.step === 'pricing' && (
           <div style={{ padding: '20px 0' }}>
-            <div className="detail-settlement mb-16">
-              <div className="detail-settlement__header">
-                <div>
-                  <div className="detail-settlement__eyebrow">Settlement rail</div>
-                  <div className="detail-settlement__title">결제 상태 · {currentSettlementLabel}</div>
-                </div>
-                <div className="detail-settlement__note">x402 흐름을 단계별로 보여줍니다.</div>
-              </div>
-              <div className="detail-settlement__steps">
-                {settlementSteps.map((step, index) => {
-                  const status = index < settlementStage ? 'done' : index === settlementStage ? 'active' : 'pending';
-                  return (
-                    <div key={step.label} className={`detail-settlement__step detail-settlement__step--${status}`}>
-                      <div className="detail-settlement__step-index">{index + 1}</div>
-                      <div className="detail-settlement__step-body">
-                        <div className="detail-settlement__step-label">{step.label}</div>
-                        <div className="detail-settlement__step-detail">{step.detail}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {settlementChip}
             <div className="card mb-16" style={{ padding: 16, textAlign: 'center' }}>
               <DollarSign size={24} style={{ color: 'var(--accent-purple)' }} />
               <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: 8 }}>
@@ -531,38 +531,18 @@ export function AttestationPurchaseModal({
                   : 'Smart Wallet에서 자동 결제됩니다.'}
               </div>
             </div>
-            <button className="btn btn-primary" onClick={handlePurchase} style={{ width: '100%' }}>
-              {state.isFree ? '📄 데이터 조회' : `🔒 구매 및 조회 ($${state.price.amountUsd})`}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={handlePurchase}>
+                {state.isFree ? '데이터 조회' : `구매 및 조회 ($${state.price.amountUsd})`}
+              </button>
+            </div>
           </div>
         )}
 
         {/* ── Purchasing spinner ── */}
         {state.step === 'purchasing' && (
           <div style={{ padding: '20px 0' }}>
-            <div className="detail-settlement mb-16">
-              <div className="detail-settlement__header">
-                <div>
-                  <div className="detail-settlement__eyebrow">Settlement rail</div>
-                  <div className="detail-settlement__title">결제 상태 · {currentSettlementLabel}</div>
-                </div>
-                <div className="detail-settlement__note">백엔드가 동기식으로 처리해도 단계는 그대로 노출됩니다.</div>
-              </div>
-              <div className="detail-settlement__steps">
-                {settlementSteps.map((step, index) => {
-                  const status = index < settlementStage ? 'done' : index === settlementStage ? 'active' : 'pending';
-                  return (
-                    <div key={step.label} className={`detail-settlement__step detail-settlement__step--${status}`}>
-                      <div className="detail-settlement__step-index">{index + 1}</div>
-                      <div className="detail-settlement__step-body">
-                        <div className="detail-settlement__step-label">{step.label}</div>
-                        <div className="detail-settlement__step-detail">{step.detail}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {settlementChip}
             <div className="flex items-center justify-center" style={{ padding: 24 }}>
               <Loader size={20} className="spin" />
               <span className="text-muted ml-8">
@@ -600,26 +580,7 @@ export function AttestationPurchaseModal({
               </div>
             </div>
 
-            <div className="detail-settlement mb-16">
-              <div className="detail-settlement__header">
-                <div>
-                  <div className="detail-settlement__eyebrow">Settlement rail</div>
-                  <div className="detail-settlement__title">정산 완료 · {currentSettlementLabel}</div>
-                </div>
-                <div className="detail-settlement__note">요청, 체인 확인, API 반영이 모두 끝났습니다.</div>
-              </div>
-              <div className="detail-settlement__steps">
-                {settlementSteps.map((step, index) => (
-                  <div key={step.label} className="detail-settlement__step detail-settlement__step--done">
-                    <div className="detail-settlement__step-index">{index + 1}</div>
-                    <div className="detail-settlement__step-body">
-                      <div className="detail-settlement__step-label">{step.label}</div>
-                      <div className="detail-settlement__step-detail">{step.detail}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {settlementChip}
 
             <div className="detail-data__receipt-row">
               <div className="detail-data__receipt-copy">
@@ -635,14 +596,14 @@ export function AttestationPurchaseModal({
                   {receiptCopied ? '복사됨' : '복사'}
                 </button>
               )}
-              {effectiveTxHash && (
+              {effectivePaymentTxHash && (
                 <a
-                  href={`https://sepolia.basescan.org/tx/${effectiveTxHash}`}
+                  href={basescanTxUrl(effectivePaymentTxHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-secondary btn-sm"
                 >
-                  <ExternalLink size={13} /> Basescan
+                  <ExternalLink size={13} /> Payment Tx
                 </a>
               )}
             </div>
@@ -764,14 +725,15 @@ export function AttestationPurchaseModal({
               )}
             </div>
 
-            <button
-              className="btn btn-secondary mt-12"
-              onClick={() => copyData(state.data.data)}
-              style={{ width: '100%' }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? '복사됨!' : '클립보드에 복사'}
-            </button>
+            <div className="mt-12" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => copyData(state.data.data)}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? '복사됨!' : '클립보드에 복사'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -810,9 +772,11 @@ export function AttestationPurchaseModal({
             <p className="text-xs text-muted mb-12">
               위 주소로 USDC를 충전한 후 다시 시도하세요.
             </p>
-            <button className="btn btn-primary" onClick={handlePurchase} style={{ width: '100%' }}>
-              다시 시도
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary btn-sm" onClick={handlePurchase}>
+                다시 시도
+              </button>
+            </div>
           </div>
         )}
 
@@ -824,9 +788,11 @@ export function AttestationPurchaseModal({
               <span style={{ fontWeight: 600 }}>오류 발생</span>
             </div>
             <p className="text-sm">{state.message}</p>
-            <button className="btn btn-secondary mt-12" onClick={onClose} style={{ width: '100%' }}>
-              닫기
-            </button>
+            <div className="mt-12" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={onClose}>
+                닫기
+              </button>
+            </div>
           </div>
         )}
       </div>
