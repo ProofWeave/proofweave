@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { searchAttestations, verifyContentHash } from '../services/adminApi';
@@ -6,14 +6,13 @@ import type {
   AdminSearchFilters,
   AttestationRow,
   BatchVerifyItemResult,
+  BatchVerifyStatus,
   BatchVerifySummary,
 } from '../types/admin';
-import { KpiCards } from '../components/admin/KpiCards';
 import { AttestationFilters } from '../components/admin/AttestationFilters';
 import { AttestationTable } from '../components/admin/AttestationTable';
 import { BatchAuditPanel } from '../components/admin/BatchAuditPanel';
 import { AttestationDetailModal } from '../components/admin/AttestationDetailModal';
-import { ChartsSection } from '../components/admin/ChartsSection';
 
 const DEFAULT_FILTERS: AdminSearchFilters = {
   q: '',
@@ -24,9 +23,13 @@ const DEFAULT_FILTERS: AdminSearchFilters = {
 };
 
 const PAGE_LIMIT = 20;
+const EMPTY_ATTESTATION_ROWS: AttestationRow[] = [];
 
-function toVerifyResult(status: unknown): 'verified' | 'mismatch' {
-  if (status === true || status === 'verified') return 'verified';
+/** verify 응답을 4-상태로 정규화 — not_found를 mismatch와 구분 */
+function toVerifyResult(verify: { verified?: boolean; valid?: boolean; status?: string; error?: string }): BatchVerifyStatus {
+  if (verify.verified === true || verify.valid === true || verify.status === 'verified') return 'verified';
+  const err = (verify.error || '').toLowerCase();
+  if (err.includes('not found') || err.includes('not_found') || err.includes('찾을 수 없')) return 'not_found';
   return 'mismatch';
 }
 
@@ -35,115 +38,106 @@ export function AdminDashboard() {
   const [filters, setFilters] = useState<AdminSearchFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [selectedMap, setSelectedMap] = useState<Record<string, AttestationRow>>({});
-  const [verificationRuns, setVerificationRuns] = useState(0);
   const [batchSummary, setBatchSummary] = useState<BatchVerifySummary | null>(null);
   const [batchLogs, setBatchLogs] = useState<BatchVerifyItemResult[]>([]);
   const [runningBatch, setRunningBatch] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const cancelRef = useRef(false);
 
   const query = useQuery({
     queryKey: ['admin', 'search', filters, page, PAGE_LIMIT],
     queryFn: () => searchAttestations(filters, page, PAGE_LIMIT),
   });
 
-  const rows = query.data?.attestations ?? [];
+  const rows = query.data?.attestations ?? EMPTY_ATTESTATION_ROWS;
   const hasNextPage = rows.length >= PAGE_LIMIT;
 
   const selectedIds = useMemo(() => new Set(Object.keys(selectedMap)), [selectedMap]);
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.attestationId));
-
   const totalCount = query.data?.count ?? 0;
-  const last24h = rows.filter((row) => Date.now() - new Date(row.createdAt).getTime() <= 24 * 60 * 60 * 1000).length;
-  const verifiedRatio = batchSummary && batchSummary.total > 0
-    ? (batchSummary.verified / batchSummary.total) * 100
-    : 0;
 
   const onSearch = () => {
     setPage(1);
     setFilters(draftFilters);
-    setSelectedMap({});
   };
 
   const onReset = () => {
     setDraftFilters(DEFAULT_FILTERS);
     setFilters(DEFAULT_FILTERS);
     setPage(1);
-    setSelectedMap({});
   };
 
   const toggleSelect = (row: AttestationRow) => {
     setSelectedMap((prev) => {
       const next = { ...prev };
-      if (next[row.attestationId]) {
-        delete next[row.attestationId];
-      } else {
-        next[row.attestationId] = row;
-      }
+      if (next[row.attestationId]) delete next[row.attestationId];
+      else next[row.attestationId] = row;
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedMap((prev) => {
-        const next = { ...prev };
-        rows.forEach((row) => {
-          delete next[row.attestationId];
-        });
-        return next;
-      });
-      return;
-    }
-
     setSelectedMap((prev) => {
       const next = { ...prev };
-      rows.forEach((row) => {
-        next[row.attestationId] = row;
-      });
+      if (allSelected) rows.forEach((row) => delete next[row.attestationId]);
+      else rows.forEach((row) => { next[row.attestationId] = row; });
       return next;
     });
   };
+
+  const cancelBatch = () => { cancelRef.current = true; };
 
   const runBatchVerification = async () => {
     const selectedRows = Object.values(selectedMap);
     if (selectedRows.length === 0) return;
 
+    cancelRef.current = false;
     setRunningBatch(true);
-    setVerificationRuns((v) => v + 1);
     setBatchProgress({ done: 0, total: selectedRows.length });
     setBatchLogs([]);
+    setBatchSummary(null);
 
-    const result: BatchVerifySummary = { total: selectedRows.length, verified: 0, mismatch: 0, error: 0 };
+    const result: BatchVerifySummary = { total: selectedRows.length, verified: 0, mismatch: 0, not_found: 0, error: 0 };
     const logs: BatchVerifyItemResult[] = [];
 
     for (let i = 0; i < selectedRows.length; i += 1) {
+      if (cancelRef.current) break;
       const row = selectedRows[i];
+      setCurrentId(row.attestationId);
+      const startedAt = performance.now();
       try {
         const verify = await verifyContentHash(row.contentHash, row.creator);
-        const status = toVerifyResult(verify.verified ?? verify.valid ?? verify.status);
+        const status = toVerifyResult(verify);
         result[status] += 1;
         logs.push({
           attestationId: row.attestationId,
           contentHash: row.contentHash,
+          creator: row.creator,
           result: status,
+          onchainHash: verify.onchainHash,
+          elapsedMs: Math.round(performance.now() - startedAt),
           message: verify.error,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
         result.error += 1;
         logs.push({
           attestationId: row.attestationId,
           contentHash: row.contentHash,
+          creator: row.creator,
           result: 'error',
-          message,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          message: err instanceof Error ? err.message : 'Unknown error',
         });
       }
       setBatchProgress({ done: i + 1, total: selectedRows.length });
+      setBatchLogs([...logs]);
     }
 
+    setCurrentId(null);
+    result.total = logs.length;
     setBatchSummary(result);
-    setBatchLogs(logs);
     setRunningBatch(false);
   };
 
@@ -151,53 +145,53 @@ export function AdminDashboard() {
     <>
       <div className="page-header admin-header-row">
         <div>
-          <h2>Admin Audit Dashboard</h2>
-          <p>실시간 감사 이력 조회와 배치 무결성 검증</p>
+          <h2>Verification</h2>
+          <p>선택한 attestation의 온체인 무결성을 일괄 검증합니다</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => query.refetch()}>
-          <RefreshCw size={16} /> Refresh
+        <button className="btn btn-secondary btn-sm" onClick={() => query.refetch()}>
+          <RefreshCw size={14} /> 새로고침
         </button>
       </div>
 
-      <KpiCards
-        total={totalCount}
-        last24h={last24h}
-        verifiedRatio={verifiedRatio}
-        verificationRuns={verificationRuns}
-        loading={query.isLoading}
-      />
+      {/* Step 1 — Queue selector: search/filter feeds the verification queue */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">1 · 검증할 항목 선택</span>
+          <span className="text-xs text-muted">{selectedIds.size}개 선택됨 · 전체 {totalCount.toLocaleString()}건</span>
+        </div>
+        <AttestationFilters
+          value={draftFilters}
+          onChange={setDraftFilters}
+          onSearch={onSearch}
+          onReset={onReset}
+        />
+        <AttestationTable
+          rows={rows}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectAll={toggleSelectAll}
+          allSelected={allSelected}
+          loading={query.isLoading}
+          page={page}
+          hasNextPage={hasNextPage}
+          onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
+          onNextPage={() => setPage((p) => p + 1)}
+          onViewDetail={setDetailId}
+        />
+      </div>
 
-      <AttestationFilters
-        value={draftFilters}
-        onChange={setDraftFilters}
-        onSearch={onSearch}
-        onReset={onReset}
-      />
-
-      <AttestationTable
-        rows={rows}
-        selectedIds={selectedIds}
-        onToggleSelect={toggleSelect}
-        onToggleSelectAll={toggleSelectAll}
-        allSelected={allSelected}
-        loading={query.isLoading}
-        page={page}
-        hasNextPage={hasNextPage}
-        onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
-        onNextPage={() => setPage((p) => p + 1)}
-        onViewDetail={setDetailId}
-      />
-
+      {/* Step 2 — Verification run + live result (stats inline in the panel) */}
       <BatchAuditPanel
         selectedCount={selectedIds.size}
         running={runningBatch}
         progress={batchProgress}
+        currentId={currentId}
         summary={batchSummary}
         logs={batchLogs}
         onRun={runBatchVerification}
+        onCancel={cancelBatch}
+        onViewDetail={setDetailId}
       />
-
-      <ChartsSection rows={rows} />
 
       <AttestationDetailModal
         open={Boolean(detailId)}

@@ -1,4 +1,4 @@
-import { ExternalLink, Eye } from 'lucide-react';
+import { ExternalLink, Eye, Check } from 'lucide-react';
 import type { AttestationRow } from '../../types/admin';
 
 interface Props {
@@ -44,30 +44,25 @@ export function AttestationTable({
   onViewDetail,
 }: Props) {
   return (
-    <div className="card mb-24">
-      <div className="card-header">
-        <span className="card-title">Audit History</span>
+    <div>
+      <div className="flex items-center justify-between" style={{ margin: '8px 0 10px' }}>
+        <button className="btn btn-secondary btn-sm" onClick={onToggleSelectAll} disabled={rows.length === 0}>
+          {allSelected && rows.length > 0 ? '전체 해제' : '이 페이지 전체 선택'}
+        </button>
         <span className="text-xs text-muted">Page {page}</span>
       </div>
       <div className="table-wrapper">
-        <table>
+        <table className="queue-table">
           <thead>
             <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={allSelected && rows.length > 0}
-                  onChange={onToggleSelectAll}
-                  aria-label="Select all rows"
-                />
-              </th>
+              <th style={{ width: 36 }}></th>
               <th>ID</th>
               <th>Content Hash</th>
               <th>Creator</th>
               <th>Model</th>
               <th>Date</th>
               <th>Links</th>
-              <th>Actions</th>
+              <th>Detail</th>
             </tr>
           </thead>
           <tbody>
@@ -83,64 +78,68 @@ export function AttestationTable({
                   검색 결과가 없습니다.
                 </td>
               </tr>
-            ) : rows.map((row) => (
-              <tr key={row.attestationId}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(row.attestationId)}
-                    onChange={() => onToggleSelect(row)}
-                    aria-label={`select-${row.attestationId}`}
-                  />
-                </td>
-                <td className="mono" title={row.attestationId}>{truncate(row.attestationId)}</td>
-                <td className="mono" title={row.contentHash}>{truncate(row.contentHash)}</td>
-                <td className="mono" title={row.creator}>{truncate(row.creator)}</td>
-                <td><span className="badge badge-purple">{row.aiModel || '-'}</span></td>
-                <td className="text-xs">{formatDate(row.createdAt)}</td>
-                <td>
-                  <div className="flex gap-8">
-                    <a
-                      href={`https://sepolia.basescan.org/tx/${row.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="badge badge-info"
-                      style={{ textDecoration: 'none' }}
-                    >
-                      Tx <ExternalLink size={12} />
-                    </a>
-                    {row.offchainRef && (
+            ) : rows.map((row) => {
+              const selected = selectedIds.has(row.attestationId);
+              return (
+                <tr
+                  key={row.attestationId}
+                  className={`queue-row ${selected ? 'queue-row--selected' : ''}`}
+                  onClick={() => onToggleSelect(row)}
+                >
+                  <td>
+                    <span className={`queue-check ${selected ? 'queue-check--on' : ''}`} aria-hidden="true">
+                      {selected && <Check size={13} />}
+                    </span>
+                  </td>
+                  <td className="mono" title={row.attestationId}>{truncate(row.attestationId)}</td>
+                  <td className="mono" title={row.contentHash}>{truncate(row.contentHash)}</td>
+                  <td className="mono" title={row.creator}>{truncate(row.creator)}</td>
+                  <td><span className="badge badge-purple">{row.aiModel || '-'}</span></td>
+                  <td className="text-xs">{formatDate(row.createdAt)}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-8">
                       <a
-                        href={`https://gateway.pinata.cloud/ipfs/${row.offchainRef}`}
+                        href={`https://sepolia.basescan.org/tx/${row.txHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="badge badge-success"
+                        className="badge badge-info"
                         style={{ textDecoration: 'none' }}
                       >
-                        IPFS <ExternalLink size={12} />
+                        Tx <ExternalLink size={12} />
                       </a>
-                    )}
-                  </div>
-                </td>
-                <td>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => onViewDetail(row.attestationId)}
-                  >
-                    <Eye size={14} /> Detail
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      {row.offchainRef && (
+                        <a
+                          href={`https://gateway.pinata.cloud/ipfs/${row.offchainRef}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="badge badge-success"
+                          style={{ textDecoration: 'none' }}
+                        >
+                          IPFS <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </div>
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => onViewDetail(row.attestationId)}
+                    >
+                      <Eye size={14} /> 상세
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       <div className="flex justify-between mt-16">
         <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={onPrevPage}>
-          Previous
+          이전
         </button>
         <button className="btn btn-secondary btn-sm" disabled={!hasNextPage} onClick={onNextPage}>
-          Next
+          다음
         </button>
       </div>
     </div>

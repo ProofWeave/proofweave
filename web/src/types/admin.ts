@@ -36,13 +36,19 @@ export interface VerifyResponse {
 export interface BatchVerifyItemResult {
   attestationId: string;
   contentHash: string;
-  result: 'verified' | 'mismatch' | 'error';
+  creator: string;
+  result: BatchVerifyStatus;
+  onchainHash?: string;
+  elapsedMs?: number;
   message?: string;
 }
+
+export type BatchVerifyStatus = 'verified' | 'mismatch' | 'not_found' | 'error';
 
 export interface BatchVerifySummary {
   total: number;
   verified: number;
   mismatch: number;
+  not_found: number;
   error: number;
 }
