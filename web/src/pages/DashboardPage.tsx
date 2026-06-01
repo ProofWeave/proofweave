@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Cpu, Globe, ChevronsDown } from 'lucide-react';
+import { Cpu, Globe, FileCheck, ShoppingCart, Coins, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { AttestationMetadataView } from '../components/AttestationCard';
@@ -23,31 +23,44 @@ interface SearchResponse {
   attestations: AttestationRow[];
 }
 
-// ── Domain color/label map ──────────────────────────────────
+interface MyStats {
+  totalPurchases: number;
+  totalSpentUsdMicros: number;
+  totalAttestations: number;
+}
 
-const DOMAIN_CONFIG: DomainConfig = {
-  defi:            { label: 'DeFi',           color: 'var(--accent-purple)' },
-  smart_contract:  { label: 'Smart Contract', color: 'var(--accent-cyan)' },
-  security:        { label: 'Security',       color: 'var(--accent-red)' },
-  legal:           { label: 'Legal',          color: 'var(--accent-amber)' },
-  data_analysis:   { label: 'Data Analysis',  color: 'var(--accent-green)' },
-  infrastructure:  { label: 'Infra',          color: '#7C6F64' },
-  blockchain:      { label: 'Blockchain',     color: '#6A5ACD' },
-  cryptocurrency:  { label: 'Crypto',         color: '#CD853F' },
-  nft:             { label: 'NFT',            color: '#DA70D6' },
-  dao:             { label: 'DAO',            color: '#20B2AA' },
-  ai_ml:           { label: 'AI/ML',          color: '#4682B4' },
-  data_science:    { label: 'Data Sci.',      color: '#3CB371' },
-  web3:            { label: 'Web3',           color: '#9370DB' },
-  economics:       { label: 'Economics',      color: '#D2691E' },
-  education:       { label: 'Education',      color: '#5F9EA0' },
-  health:          { label: 'Health',         color: '#E9967A' },
-  science:         { label: 'Science',        color: '#8FBC8F' },
-  technology:      { label: 'Technology',     color: '#778899' },
-  general:         { label: 'General',        color: '#A0938F' },
+interface ClaimSummary {
+  db: { grossEarnedUsdMicros: string; paymentCount: number };
+  onchain: { claimableBaseUnits: string | null; available?: boolean };
+}
+
+// ── Domain color/label map (slate + cyan ramp) ──────────────
+
+const RAMP = [
+  '#22D3EE', '#74BEB4', '#97CEC7', '#5FD7E0', '#3FB7C7', '#56C596',
+  '#F59E0B', '#4682B4', '#9370DB', '#52ADA1', '#2E94A8', '#7FD7CC',
+];
+const DOMAIN_KEYS = [
+  'defi', 'smart_contract', 'security', 'legal', 'data_analysis', 'infrastructure',
+  'blockchain', 'cryptocurrency', 'nft', 'dao', 'ai_ml', 'data_science',
+  'web3', 'economics', 'education', 'health', 'science', 'technology', 'general',
+] as const;
+const DOMAIN_LABELS: Record<string, string> = {
+  defi: 'DeFi', smart_contract: 'Smart Contract', security: 'Security', legal: 'Legal',
+  data_analysis: 'Data Analysis', infrastructure: 'Infra', blockchain: 'Blockchain',
+  cryptocurrency: 'Crypto', nft: 'NFT', dao: 'DAO', ai_ml: 'AI/ML', data_science: 'Data Sci.',
+  web3: 'Web3', economics: 'Economics', education: 'Education', health: 'Health',
+  science: 'Science', technology: 'Technology', general: 'General',
 };
+const DOMAIN_CONFIG: DomainConfig = Object.fromEntries(
+  DOMAIN_KEYS.map((k, i) => [k, { label: DOMAIN_LABELS[k], color: RAMP[i % RAMP.length] }]),
+);
 
 const TIMELINE_DAYS = 30;
+
+const fmtUsd = (micros: number) => `$${(micros / 1_000_000).toFixed(2)}`;
+const fmtClaimable = (base: string | null) =>
+  base == null ? '—' : `$${(Number(base) / 1_000_000).toFixed(2)}`;
 
 // ── Component ───────────────────────────────────────────────
 
@@ -55,18 +68,23 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [recent, setRecent] = useState<AttestationRow[]>([]);
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
+  const [stats, setStats] = useState<MyStats | null>(null);
+  const [claim, setClaim] = useState<ClaimSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [searchData, timelineData] = await Promise.all([
-          api.get<SearchResponse>('/search?limit=10'),
+        const [searchData, timelineData, statsData, claimData] = await Promise.all([
+          api.get<SearchResponse>('/search?limit=8'),
           api.get<TimelineResponse>(`/stats/timeline?days=${TIMELINE_DAYS}`).catch(() => null),
+          api.get<MyStats>('/stats/me').catch(() => null),
+          api.get<ClaimSummary>('/claims/me').catch(() => null),
         ]);
-
         setRecent(searchData.attestations || []);
         setTimeline(timelineData);
+        setStats(statsData);
+        setClaim(claimData);
       } catch (err) {
         console.warn('[Dashboard] fetch failed:', err);
       } finally {
@@ -81,24 +99,82 @@ export function DashboardPage() {
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('ko-KR', {
-        month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
       });
     } catch {
       return dateStr;
     }
   };
 
+  const goToRow = (att: AttestationRow) => {
+    const dom = att.metadata?.domain;
+    navigate(dom ? `/explorer?domain=${encodeURIComponent(dom)}` : `/explorer?q=${encodeURIComponent(att.contentHash)}`);
+  };
+
+  const claimable = claim?.onchain.claimableBaseUnits ?? null;
+
+  const tiles = [
+    {
+      key: 'attest', icon: FileCheck, label: '내가 등록한 데이터',
+      value: stats ? String(stats.totalAttestations) : '—', unit: '건',
+      to: '/explorer',
+    },
+    {
+      key: 'purchases', icon: ShoppingCart, label: '내가 구매한 데이터',
+      value: stats ? String(stats.totalPurchases) : '—',
+      sub: stats ? `${fmtUsd(stats.totalSpentUsdMicros)} 지출` : undefined,
+      to: '/analytics',
+    },
+    {
+      key: 'earned', icon: Coins, label: '누적 수익 (DB)',
+      value: claim ? fmtUsd(Number(claim.db.grossEarnedUsdMicros)) : '—',
+      sub: claim ? `결제 ${claim.db.paymentCount}건` : undefined,
+      to: '/claims',
+    },
+    {
+      key: 'claimable', icon: ArrowUpRight, label: '청구 가능 (on-chain)',
+      value: fmtClaimable(claimable),
+      accent: true,
+      to: '/claims',
+    },
+  ];
+
   return (
     <>
       <div className="page-header">
         <h2>Dashboard</h2>
+        <p>등록 · 거래 · 수익으로 이어지는 내 활동 흐름</p>
+      </div>
+
+      {/* Flow strip — Attest → Explore → Purchase → Earn */}
+      <div className="flow-strip">
+        {tiles.map(({ key, icon: Icon, label, value, unit, sub, accent, to }) => (
+          <button
+            key={key}
+            className={`flow-tile ${accent ? 'flow-tile--accent' : ''}`}
+            onClick={() => navigate(to)}
+          >
+            <div className="flow-tile__head">
+              <Icon size={15} />
+              <span>{label}</span>
+              <ArrowUpRight size={13} className="flow-tile__go" />
+            </div>
+            <div className="flow-tile__value">
+              {loading ? <span className="skeleton" style={{ width: 56, height: 22, display: 'inline-block' }} /> : value}
+              {unit && !loading && <span className="flow-tile__unit"> {unit}</span>}
+            </div>
+            {sub && !loading && <div className="flow-tile__sub">{sub}</div>}
+          </button>
+        ))}
       </div>
 
       {/* Attestation Timeline (30 days, stacked by domain) */}
       <div className="card mb-24">
         <div className="card-header">
           <span className="card-title">Attestation 추이 ({TIMELINE_DAYS}일)</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/explorer')}>
+            Explorer 열기
+          </button>
         </div>
         {loading && !timeline ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -109,10 +185,15 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Attestations — with metadata */}
+      {/* Recent Attestations */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">최근 Attestations</span>
+          {recent.length > 0 && (
+            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/explorer')}>
+              전체 보기
+            </button>
+          )}
         </div>
         <div className="table-wrapper">
           <table>
@@ -129,7 +210,7 @@ export function DashboardPage() {
               {loading ? (
                 <tr>
                   <td colSpan={5} style={{ padding: 40 }}>
-                    <div className="flex items-center justify-between gap-12" style={{ justifyContent: 'center' }}>
+                    <div className="flex items-center gap-12" style={{ justifyContent: 'center' }}>
                       <span className="spinner" /> 로딩 중...
                     </div>
                   </td>
@@ -139,7 +220,7 @@ export function DashboardPage() {
                   const meta = att.metadata;
                   const hasTitle = meta?.metadataStatus === 'ready' && meta?.title;
                   return (
-                    <tr key={att.attestationId} style={{ cursor: 'pointer' }} onClick={() => navigate('/explorer')}>
+                    <tr key={att.attestationId} style={{ cursor: 'pointer' }} onClick={() => goToRow(att)}>
                       <td title={att.contentHash}>
                         <div style={{ fontWeight: hasTitle ? 600 : 400, color: hasTitle ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                           {hasTitle ? meta!.title : truncateHash(att.contentHash)}
@@ -152,7 +233,7 @@ export function DashboardPage() {
                       </td>
                       <td>
                         {meta?.domain ? (
-                          <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
+                          <span className="badge badge-purple text-xs">
                             {DOMAIN_CONFIG[meta.domain]?.label || meta.domain}
                           </span>
                         ) : (
@@ -160,7 +241,7 @@ export function DashboardPage() {
                         )}
                       </td>
                       <td>
-                        <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
+                        <span className="badge badge-purple text-xs">
                           <Cpu size={10} style={{ marginRight: 2 }} />
                           {att.aiModel}
                         </span>
@@ -180,34 +261,17 @@ export function DashboardPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted" style={{ padding: 40 }}>
-                    아직 데이터가 없습니다. Attest 페이지에서 첫 번째 데이터를 등록해보세요.
+                  <td colSpan={5} className="text-center text-muted" style={{ padding: 32 }}>
+                    <div style={{ marginBottom: 12 }}>아직 등록된 데이터가 없습니다.</div>
+                    <button className="btn btn-primary btn-sm" onClick={() => navigate('/attest')}>
+                      <FileCheck size={14} /> 첫 데이터 등록하기
+                    </button>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        {recent.length > 0 && (
-          <div
-            onClick={() => navigate('/explorer')}
-            style={{
-              textAlign: 'center',
-              padding: '12px 0 8px',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              color: 'var(--text-muted)',
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-primary)'; }}
-            onMouseLeave={(e) => { (e.target as HTMLDivElement).style.color = 'var(--text-muted)'; }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: '0.72rem' }}>Explorer에서 더보기</span>
-              <ChevronsDown size={22} style={{ animation: 'bounce-down 1.2s ease-in-out infinite' }} />
-            </div>
-          </div>
-        )}
       </div>
     </>
   );

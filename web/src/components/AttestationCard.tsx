@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ExternalLink, FileSearch, Code, Globe, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, FileSearch, Code, Globe, Cpu, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
+import { basescanTxUrl, isEvmTxHash } from '../lib/tx';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -31,12 +32,12 @@ export interface AttestationWithMetadata {
 // ── Domain color mapping ────────────────────────────────────
 
 const DOMAIN_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  defi:             { bg: 'rgba(139, 58, 74, 0.08)',  border: 'rgba(139, 58, 74, 0.20)',  text: '#8B3A4A' },
-  smart_contract:   { bg: 'rgba(90, 125, 124, 0.08)', border: 'rgba(90, 125, 124, 0.20)', text: '#5A7D7C' },
-  security:         { bg: 'rgba(181, 66, 72, 0.08)',  border: 'rgba(181, 66, 72, 0.20)',  text: '#B54248' },
-  legal:            { bg: 'rgba(158, 107, 58, 0.08)', border: 'rgba(158, 107, 58, 0.20)', text: '#9E6B3A' },
-  data_analysis:    { bg: 'rgba(74, 124, 89, 0.08)',  border: 'rgba(74, 124, 89, 0.20)',  text: '#4A7C59' },
-  general:          { bg: 'rgba(142, 122, 128, 0.08)',border: 'rgba(142, 122, 128, 0.15)',text: '#8E7A80' },
+  defi:             { bg: 'rgba(34, 211, 238, 0.10)',  border: 'rgba(34, 211, 238, 0.22)',  text: '#22D3EE' },
+  smart_contract:   { bg: 'rgba(116, 190, 180, 0.10)', border: 'rgba(116, 190, 180, 0.22)', text: '#74BEB4' },
+  security:         { bg: 'rgba(247, 108, 108, 0.10)', border: 'rgba(247, 108, 108, 0.22)', text: '#F76C6C' },
+  legal:            { bg: 'rgba(245, 158, 11, 0.10)',  border: 'rgba(245, 158, 11, 0.22)',  text: '#F59E0B' },
+  data_analysis:    { bg: 'rgba(86, 197, 150, 0.10)',  border: 'rgba(86, 197, 150, 0.22)',  text: '#56C596' },
+  general:          { bg: 'rgba(159, 177, 188, 0.10)', border: 'rgba(159, 177, 188, 0.18)', text: '#9FB1BC' },
 };
 
 function getDomainColor(domain?: string) {
@@ -61,15 +62,22 @@ interface AttestationCardProps {
   attestation: AttestationWithMetadata;
   isPurchased: boolean;
   onSelect: (id: string) => void;
+  onCreatorSelect?: (creator: string) => void;
+  onDomainSelect?: (domain: string) => void;
 }
 
 const KEYWORD_LIMIT = 6;
 
-export function AttestationCard({ attestation, isPurchased, onSelect }: AttestationCardProps) {
+export function AttestationCard({ attestation, isPurchased, onSelect, onCreatorSelect, onDomainSelect }: AttestationCardProps) {
   const meta = attestation.metadata;
   const domainColor = getDomainColor(meta?.domain);
   const hasMetadata = meta?.metadataStatus === 'ready' && meta?.title;
-  const isPaid = (attestation.priceUsdMicros ?? 0) > 0;
+  const price = attestation.priceUsdMicros ?? 0;
+  const isPaid = price > 0;
+  const priceLabel = isPaid ? `$${(price / 1_000_000).toFixed(2)}` : '무료';
+  const shortCreator = attestation.creator
+    ? `${attestation.creator.slice(0, 6)}…${attestation.creator.slice(-4)}`
+    : '';
   const [keywordsExpanded, setKeywordsExpanded] = useState(false);
 
   const truncateHash = (hash: string) =>
@@ -89,6 +97,7 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
   const allKeywords = meta?.keywords ?? [];
   const visibleKeywords = keywordsExpanded ? allKeywords : allKeywords.slice(0, KEYWORD_LIMIT);
   const hasMore = allKeywords.length > KEYWORD_LIMIT;
+  const attestationTxHash = isEvmTxHash(attestation.txHash) ? attestation.txHash : null;
 
   const toggleKeywords = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -124,10 +133,15 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
         </div>
       </div>
 
-      {/* Domain + ProblemType */}
+      {/* Domain + ProblemType + Creator */}
       <div className="attestation-card__meta-row">
         {meta?.domain && (
-          <span className="attestation-card__domain" style={{ color: domainColor.text, background: domainColor.bg, borderColor: domainColor.border }}>
+          <span
+            className="attestation-card__domain"
+            style={{ color: domainColor.text, background: domainColor.bg, borderColor: domainColor.border, cursor: onDomainSelect ? 'pointer' : 'default' }}
+            onClick={(e) => { if (onDomainSelect && meta.domain) { e.stopPropagation(); onDomainSelect(meta.domain); } }}
+            title={onDomainSelect ? '이 도메인으로 필터' : undefined}
+          >
             {DOMAIN_LABELS[meta.domain] || meta.domain}
           </span>
         )}
@@ -140,6 +154,16 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
           <span className="attestation-card__lang">
             <Globe size={11} /> {meta.language.toUpperCase()}
           </span>
+        )}
+        {attestation.creator && (
+          <button
+            className="attestation-card__creator"
+            onClick={(e) => { if (onCreatorSelect) { e.stopPropagation(); onCreatorSelect(attestation.creator); } }}
+            title={onCreatorSelect ? '이 작성자의 데이터 보기' : attestation.creator}
+            disabled={!onCreatorSelect}
+          >
+            <Wallet size={10} /> {shortCreator}
+          </button>
         )}
       </div>
 
@@ -186,15 +210,20 @@ export function AttestationCard({ attestation, isPurchased, onSelect }: Attestat
           )}
         </div>
         <div className="attestation-card__footer-right">
-          <a
-            href={`https://sepolia.basescan.org/tx/${attestation.txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="attestation-card__tx-link"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLink size={12} /> Tx
-          </a>
+          <span className={`attestation-card__price ${isPaid ? '' : 'attestation-card__price--free'}`}>
+            {priceLabel}
+          </span>
+          {attestationTxHash && (
+            <a
+              href={basescanTxUrl(attestationTxHash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="attestation-card__tx-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink size={12} /> Tx
+            </a>
+          )}
           <button
             className={`attestation-card__action ${isPaid && !isPurchased ? '' : 'attestation-card__action--secondary'}`}
             onClick={(e) => { e.stopPropagation(); onSelect(attestation.attestationId); }}

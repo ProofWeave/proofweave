@@ -28,8 +28,17 @@ export function MyDataSection() {
   const loadMyData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<{ attestations: MyAttestation[] }>('/search?limit=100');
-      // 서버에서 모든 데이터 가져온 후 본인 데이터만 필터 (apiKeyOwner 기준)
+      // 내 creator 주소(smart wallet)로 필터 — 글로벌 마켓이 아닌 내 데이터만
+      const { smartWalletAddress } = await api
+        .get<{ smartWalletAddress: string | null }>('/wallet/address')
+        .catch(() => ({ smartWalletAddress: null }));
+      if (!smartWalletAddress) {
+        setData([]);
+        return;
+      }
+      const res = await api.get<{ attestations: MyAttestation[] }>(
+        `/search?creator=${encodeURIComponent(smartWalletAddress)}&limit=100`,
+      );
       setData(res.attestations || []);
     } catch {
       setData([]);
@@ -82,11 +91,11 @@ export function MyDataSection() {
   const truncate = (s: string) => s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s;
 
   return (
-    <div className="card mb-24">
-      <div className="card-header">
+    <div>
+      <div className="card-header" style={{ marginBottom: 12 }}>
         <span className="card-title">
           <Database size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-          내 데이터 (My Data)
+          내가 등록한 데이터
         </span>
         <button className="btn btn-secondary btn-sm" onClick={loadMyData} disabled={loading}>
           {loading ? <Loader size={12} className="spin" /> : '새로고침'}
@@ -164,7 +173,7 @@ export function MyDataSection() {
                     ) : (
                       <span style={{
                         fontWeight: 600,
-                        color: att.priceUsdMicros > 0 ? '#A67C30' : 'var(--text-muted)',
+                        color: att.priceUsdMicros > 0 ? 'var(--accent-amber)' : 'var(--text-muted)',
                         fontSize: '0.8rem',
                       }}>
                         {att.priceUsdMicros > 0

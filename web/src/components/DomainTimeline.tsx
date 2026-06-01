@@ -41,7 +41,7 @@ const IW = W - PAD.left - PAD.right;
 const IH = H - PAD.top - PAD.bottom;
 
 const FALLBACK_CFG: DomainConfigEntry = { label: 'Unknown', color: 'var(--text-muted)' };
-const ETC_CFG: DomainConfigEntry = { label: 'etc.', color: '#B0A8A4' };
+const ETC_CFG: DomainConfigEntry = { label: 'etc.', color: 'var(--text-muted)' };
 
 /** Monotone cubic interpolation — prevents overshoot/undershoot */
 function smoothPath(pts: Array<{ x: number; y: number }>): string {
@@ -483,7 +483,7 @@ export function DomainTimeline({ data, dconfig, days = 30 }: DomainTimelineProps
                 width: 8,
                 height: 8,
                 borderRadius: 2,
-                background: '#B0A8A4',
+                background: 'var(--text-muted)',
                 display: 'inline-block',
               }}
             />

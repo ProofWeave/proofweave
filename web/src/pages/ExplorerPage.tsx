@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { basescanTxUrl, isEvmTxHash } from '../lib/tx';
 import { AttestationPurchaseModal } from '../components/AttestationPurchaseModal';
 import { AttestationCard, type AttestationWithMetadata } from '../components/AttestationCard';
 import { FilterPickerModal } from '../components/FilterPickerModal';
@@ -41,16 +42,12 @@ interface Facets {
 export function ExplorerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Search state — 다중 선택
+  // Search state — 다중 선택. URL이 단일 소스(query/domain/problemType/price/creator).
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [domains, setDomains] = useState<string[]>(() => {
-    const d = searchParams.get('domain');
-    return d ? d.split(',') : [];
-  });
-  const [problemTypes, setProblemTypes] = useState<string[]>(() => {
-    const p = searchParams.get('problemType');
-    return p ? p.split(',') : [];
-  });
+  const domains = (searchParams.get('domain') || '').split(',').filter(Boolean);
+  const problemTypes = (searchParams.get('problemType') || '').split(',').filter(Boolean);
+  const priceFilter = (searchParams.get('price') as 'all' | 'free' | 'paid') || 'all';
+  const creatorFilter = searchParams.get('creator') || '';
 
   // Results
   const [results, setResults] = useState<AttestationWithMetadata[]>([]);
@@ -69,85 +66,58 @@ export function ExplorerPage() {
   // Dynamic facets
   const [facets, setFacets] = useState<Facets>({ domains: [], problemTypes: [] });
   const [filterModal, setFilterModal] = useState<'domain' | 'problemType' | null>(null);
-  const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
 
-  // 구매 + facets 로드
-  useEffect(() => {
+  const loadPurchases = () =>
     api.get<{ attestationIds: string[] }>('/purchases/mine')
       .then((data) => setPurchasedIds(new Set(data.attestationIds)))
       .catch(() => {});
-    api.get<Facets>('/search/facets')
-      .then((data) => setFacets(data))
-      .catch(() => {});
+
+  // 구매 + facets 로드 (1회)
+  useEffect(() => {
+    loadPurchases();
+    api.get<Facets>('/search/facets').then(setFacets).catch(() => {});
   }, []);
 
-  // 페이지 진입 시 자동 검색
+  // 단일 검색 effect: URL 파라미터(필터/검색어)가 바뀔 때마다 page 1로 서버 검색.
+  // 이전의 mount effect + searchParams effect 두 개가 일으키던 중복 호출/churn 제거.
+  const filterKey = searchParams.toString();
   useEffect(() => {
-    handleSearch(1);
+    setQuery(searchParams.get('q') || '');
+    runSearch(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // URL 파라미터 변경 감지 (글로벌 검색바에서 이동 시)
-  useEffect(() => {
-    const urlQ = searchParams.get('q') || '';
-    if (urlQ && urlQ !== query) {
-      setQuery(urlQ);
-      setTimeout(() => handleSearch(1, urlQ), 50);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [filterKey]);
 
   const handleModalClose = () => {
     setSelectedId(null);
-    api.get<{ attestationIds: string[] }>('/purchases/mine')
-      .then((data) => setPurchasedIds(new Set(data.attestationIds)))
-      .catch(() => {});
+    loadPurchases();
   };
 
-  const handleSearch = async (p = 1, overrideQuery?: string) => {
+  // 필터/검색어를 URL에 commit → 위 effect가 검색 실행 (단일 진실 소스)
+  const commitParams = (mut: (p: URLSearchParams) => void) => {
+    const next = new URLSearchParams(searchParams);
+    mut(next);
+    setSearchParams(next, { replace: true });
+  };
+
+  // 서버 검색 — 모든 필터(멀티 도메인/유형/가격/creator)를 server-side로 전송
+  const runSearch = async (p = 1) => {
     setLoading(true);
     setError(null);
     try {
       const limit = 20;
-      const params = new URLSearchParams({
-        limit: String(limit),
-        offset: String((p - 1) * limit),
-      });
-
-      const searchQ = overrideQuery ?? query;
-      if (searchQ.trim()) params.set('q', searchQ.trim());
-      // 다중 필터: 쉼표로 구분하여 전송 (API에서 첫 번째만 사용하지만 확장 가능)
-      if (domains.length === 1) params.set('domain', domains[0]);
-      if (problemTypes.length === 1) params.set('problemType', problemTypes[0]);
-      // 다중 선택 시 클라이언트에서 추가 필터링 (향후 API 확장 시 대체)
+      const params = new URLSearchParams({ limit: String(limit), offset: String((p - 1) * limit) });
+      const q = searchParams.get('q')?.trim();
+      if (q) params.set('q', q);
+      if (domains.length) params.set('domain', domains.join(','));
+      if (problemTypes.length) params.set('problemType', problemTypes.join(','));
+      if (priceFilter !== 'all') params.set('price', priceFilter);
+      if (creatorFilter) params.set('creator', creatorFilter);
 
       const data = await api.get<SearchResult>(`/search?${params}`);
-      let filtered = data.attestations || [];
-
-      // 다중 도메인/유형 필터: 클라이언트에서 추가 필터링
-      if (domains.length > 1) {
-        filtered = filtered.filter((a) => a.metadata?.domain && domains.includes(a.metadata.domain));
-      }
-      if (problemTypes.length > 1) {
-        filtered = filtered.filter((a) => a.metadata?.problemType && problemTypes.includes(a.metadata.problemType));
-      }
-
-      setResults(filtered);
+      setResults(data.attestations || []);
       setTotalCount(data.totalCount ?? data.count);
       setPage(p);
       setSearched(true);
-
-      // URL 동기화
-      const newParams = new URLSearchParams();
-      if (searchQ.trim()) newParams.set('q', searchQ.trim());
-      if (domains.length > 0) newParams.set('domain', domains.join(','));
-      if (problemTypes.length > 0) newParams.set('problemType', problemTypes.join(','));
-      setSearchParams(newParams, { replace: true });
-
-      // facets 새로고침
-      api.get<Facets>('/search/facets')
-        .then((data) => setFacets(data))
-        .catch(() => {});
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);
@@ -156,17 +126,20 @@ export function ExplorerPage() {
     }
   };
 
-  // 토글 함수
-  const toggleDomain = (value: string) => {
-    setDomains((prev) =>
-      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
-    );
-  };
-  const toggleProblemType = (value: string) => {
-    setProblemTypes((prev) =>
-      prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]
-    );
-  };
+  const submitQuery = () => commitParams((p) => {
+    const t = query.trim();
+    if (t) p.set('q', t); else p.delete('q');
+  });
+
+  // 토글/설정 함수 — 모두 URL에 commit (effect가 검색 실행)
+  const setListParam = (key: 'domain' | 'problemType', list: string[]) =>
+    commitParams((p) => { if (list.length) p.set(key, list.join(',')); else p.delete(key); });
+  const toggleDomain = (value: string) =>
+    setListParam('domain', domains.includes(value) ? domains.filter((d) => d !== value) : [...domains, value]);
+  const toggleProblemType = (value: string) =>
+    setListParam('problemType', problemTypes.includes(value) ? problemTypes.filter((p) => p !== value) : [...problemTypes, value]);
+  const setPriceFilter = (v: 'all' | 'free' | 'paid') =>
+    commitParams((p) => { if (v === 'all') p.delete('price'); else p.set('price', v); });
 
   const handleSelect = (id: string) => {
     setSelectedId(id);
@@ -174,9 +147,11 @@ export function ExplorerPage() {
   };
 
   const removeFilter = (type: 'domain' | 'problemType', value: string) => {
-    if (type === 'domain') setDomains((prev) => prev.filter((d) => d !== value));
-    else setProblemTypes((prev) => prev.filter((p) => p !== value));
+    if (type === 'domain') setListParam('domain', domains.filter((d) => d !== value));
+    else setListParam('problemType', problemTypes.filter((p) => p !== value));
   };
+
+  const clearCreator = () => commitParams((p) => p.delete('creator'));
 
   const truncateHash = (hash: string) =>
     hash.length > 14 ? `${hash.slice(0, 8)}…${hash.slice(-6)}` : hash;
@@ -192,16 +167,8 @@ export function ExplorerPage() {
     }
   };
 
-  const hasActiveFilters = domains.length > 0 || problemTypes.length > 0 || priceFilter !== 'all';
-
-  // 가격 필터 적용 (클라이언트 사이드 즉시 필터링)
-  const filteredResults = priceFilter === 'all'
-    ? results
-    : results.filter((a) =>
-        priceFilter === 'free'
-          ? (a.priceUsdMicros ?? 0) === 0
-          : (a.priceUsdMicros ?? 0) > 0
-      );
+  const hasActiveFilters = domains.length > 0 || problemTypes.length > 0 || priceFilter !== 'all' || !!creatorFilter;
+  const shortAddr = (a: string) => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
   return (
     <>
@@ -213,8 +180,8 @@ export function ExplorerPage() {
       {/* Search + Filters */}
       <div className="card mb-24">
         <form
-          className="flex gap-12"
-          onSubmit={(e) => { e.preventDefault(); handleSearch(1); }}
+          className="flex gap-8"
+          onSubmit={(e) => { e.preventDefault(); submitQuery(); }}
         >
           <div style={{ flex: 1, position: 'relative' }}>
             <SearchIcon
@@ -233,7 +200,7 @@ export function ExplorerPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <button className="btn btn-primary" type="submit" disabled={loading}>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={loading}>
             {loading ? <span className="spinner" /> : '검색'}
           </button>
         </form>
@@ -276,20 +243,23 @@ export function ExplorerPage() {
             >유료</button>
           </div>
 
-          {/* Active filter badges */}
+          {/* Active filter badges (click to remove) */}
           {hasActiveFilters && (
             <div className="filter-bar__tags">
+              {creatorFilter && (
+                <button type="button" className="filter-tag" onClick={clearCreator} title="작성자 필터 제거">
+                  작성자 {shortAddr(creatorFilter)} <X size={10} />
+                </button>
+              )}
               {domains.map((d) => (
-                <span key={d} className="badge badge-purple" style={{ cursor: 'pointer' }}
-                  onClick={() => removeFilter('domain', d)}>
+                <button type="button" key={d} className="filter-tag" onClick={() => removeFilter('domain', d)}>
                   {d} <X size={10} />
-                </span>
+                </button>
               ))}
               {problemTypes.map((p) => (
-                <span key={p} className="badge badge-info" style={{ cursor: 'pointer' }}
-                  onClick={() => removeFilter('problemType', p)}>
+                <button type="button" key={p} className="filter-tag filter-tag--alt" onClick={() => removeFilter('problemType', p)}>
                   {p} <X size={10} />
-                </span>
+                </button>
               ))}
             </div>
           )}
@@ -326,14 +296,16 @@ export function ExplorerPage() {
 
       {/* Results */}
       {viewMode === 'card' ? (
-        filteredResults.length > 0 ? (
+        results.length > 0 ? (
           <div className="attestation-grid">
-            {filteredResults.map((att) => (
+            {results.map((att) => (
               <AttestationCard
                 key={att.attestationId}
                 attestation={att}
                 isPurchased={purchasedIds.has(att.attestationId)}
                 onSelect={handleSelect}
+                onCreatorSelect={(c) => commitParams((p) => p.set('creator', c))}
+                onDomainSelect={toggleDomain}
               />
             ))}
           </div>
@@ -358,17 +330,19 @@ export function ExplorerPage() {
                   <th>Title / ID</th>
                   <th>Domain</th>
                   <th>Model</th>
+                  <th>Price</th>
                   <th>Date</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredResults.length > 0 ? (
-                  filteredResults.map((att) => {
+                {results.length > 0 ? (
+                  results.map((att) => {
                     const isPurchased = purchasedIds.has(att.attestationId);
                     const meta = att.metadata;
                     const hasTitle = meta?.metadataStatus === 'ready' && meta?.title;
+                    const price = att.priceUsdMicros ?? 0;
                     return (
                       <tr key={att.attestationId}>
                         <td title={att.attestationId}>
@@ -393,16 +367,15 @@ export function ExplorerPage() {
                         <td>
                           <span className="badge badge-purple">{att.aiModel || '—'}</span>
                         </td>
+                        <td className="mono text-xs">
+                          {price > 0 ? `$${(price / 1_000_000).toFixed(2)}` : <span style={{ color: 'var(--accent-cyan)' }}>무료</span>}
+                        </td>
                         <td className="text-xs">{formatDate(att.createdAt)}</td>
                         <td>
                           <div className="flex gap-4">
                             <span className="badge badge-success">confirmed</span>
                             {isPurchased && (
-                              <span className="badge" style={{
-                                background: 'rgba(139, 58, 74, 0.10)',
-                                color: 'var(--accent-purple)',
-                                border: '1px solid rgba(139, 58, 74, 0.20)',
-                              }}>
+                              <span className="badge badge-purple">
                                 <ShoppingBag size={10} style={{ marginRight: 2 }} />
                                 구매됨
                               </span>
@@ -418,15 +391,17 @@ export function ExplorerPage() {
                               <FileSearch size={14} />
                               {isPurchased ? '조회' : '상세'}
                             </button>
-                            <a
-                              href={`https://sepolia.basescan.org/tx/${att.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-secondary btn-sm"
-                              style={{ textDecoration: 'none' }}
-                            >
-                              <ExternalLink size={14} /> Tx
-                            </a>
+                            {isEvmTxHash(att.txHash) && (
+                              <a
+                                href={basescanTxUrl(att.txHash)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-secondary btn-sm"
+                                style={{ textDecoration: 'none' }}
+                              >
+                                <ExternalLink size={14} /> Tx
+                              </a>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -434,7 +409,7 @@ export function ExplorerPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted" style={{ padding: '60px' }}>
+                    <td colSpan={7} className="text-center text-muted" style={{ padding: '60px' }}>
                       {searched
                         ? '검색 결과가 없습니다.'
                         : '검색어를 입력하거나 빈 검색으로 전체 조회하세요.'}
@@ -455,11 +430,11 @@ export function ExplorerPage() {
           </span>
           <div className="flex gap-8">
             <button className="btn btn-secondary btn-sm" disabled={page <= 1}
-              onClick={() => handleSearch(page - 1)}>
+              onClick={() => runSearch(page - 1)}>
               <ChevronLeft size={14} /> 이전
             </button>
             <button className="btn btn-secondary btn-sm" disabled={page * 20 >= totalCount}
-              onClick={() => handleSearch(page + 1)}>
+              onClick={() => runSearch(page + 1)}>
               다음 <ChevronRight size={14} />
             </button>
           </div>
@@ -484,7 +459,7 @@ export function ExplorerPage() {
         options={facets.domains}
         selected={domains}
         onToggle={toggleDomain}
-        onClear={() => setDomains([])}
+        onClear={() => setListParam('domain', [])}
         onClose={() => setFilterModal(null)}
       />
       <FilterPickerModal
@@ -493,7 +468,7 @@ export function ExplorerPage() {
         options={facets.problemTypes}
         selected={problemTypes}
         onToggle={toggleProblemType}
-        onClear={() => setProblemTypes([])}
+        onClear={() => setListParam('problemType', [])}
         onClose={() => setFilterModal(null)}
       />
 
