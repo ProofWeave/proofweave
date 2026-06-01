@@ -10,6 +10,12 @@ interface ApiOptions {
 
 class ApiClient {
   private apiKey: string | null = null;
+  private onUnauthorized: (() => void) | null = null;
+
+  /** AuthContext가 등록하는 401 회복 훅 — 키를 다시 발급받게 한다 */
+  setOnUnauthorized(cb: (() => void) | null) {
+    this.onUnauthorized = cb;
+  }
 
   setApiKey(key: string) {
     this.apiKey = key;
@@ -63,8 +69,10 @@ class ApiClient {
 
     if (!res.ok) {
       if (res.status === 401) {
-        // API key가 만료/revoked → 클리어하여 AuthContext가 재발급하도록
+        // API key가 만료/revoked → 클리어 후 AuthContext에 재발급 요청.
+        // 로그아웃/landing 이동은 하지 않는다(화면 초기화 버그 방지).
         this.clearApiKey();
+        this.onUnauthorized?.();
       }
       if (res.status === 402) {
         const paymentBody = await res.json();

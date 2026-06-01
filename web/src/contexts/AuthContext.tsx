@@ -1,27 +1,8 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-  apiKeyReady: boolean;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
-  apiKeyReady: false,
-});
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+import { AuthContext } from './auth-core';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -86,29 +67,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // INITIAL_SESSION: getSession()과 중복 — 무시
         if (event === 'INITIAL_SESSION') return;
 
-        // TOKEN_REFRESHED: 토큰만 갱신, user 동일 → 불필요한 re-render 방지
-        if (event === 'TOKEN_REFRESHED') {
-          setSession(s);
-          // user는 변경하지 않음 (동일 사용자)
+        setSession(s);
+
+        // 명시적 로그아웃에서만 user를 비운다.
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          api.clearApiKey();
+          setApiKeyReady(false);
           return;
         }
 
-        setSession(s);
-        setUser(s?.user ?? null);
-        // loading을 다시 true로 설정하지 않음 — 현재 페이지 유지
-
-        if (s && event === 'SIGNED_IN') {
-          ensureApiKey(s);
-        }
-
-        if (!s) {
-          api.clearApiKey();
-          setApiKeyReady(false);
+        // TOKEN_REFRESHED · SIGNED_IN 재방출(탭 refocus) · USER_UPDATED 등:
+        // 동일 사용자면 이전 user 참조를 그대로 유지해 불필요한 re-render와
+        // /landing 으로의 튕김을 막는다. 세션이 일시적으로 비어도(로그아웃 아님)
+        // user 는 건드리지 않는다.
+        if (s?.user) {
+          const nextUser = s.user;
+          setUser((prev) => (prev && prev.id === nextUser.id ? prev : nextUser));
+          if (event === 'SIGNED_IN') ensureApiKey(s);
         }
       },
     );
 
-    return () => subscription.unsubscribe();
+    // in-page 401(키 만료/revoke) → 로그아웃/landing 이동 없이 현재 세션으로 키만 재발급
+    api.setOnUnauthorized(() => {
+      supabase.auth.getSession().then(({ data: { session: s } }) => {
+        if (s) ensureApiKey(s);
+      });
+    });
+
+    return () => {
+      api.setOnUnauthorized(null);
+      subscription.unsubscribe();
+    };
   }, [ensureApiKey]);
 
   const signOut = async () => {
