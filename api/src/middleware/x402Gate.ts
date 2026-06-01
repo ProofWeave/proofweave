@@ -17,6 +17,7 @@ import {
 } from "../services/wallet.js";
 import { env } from "../config/env.js";
 import { pool } from "../services/db.js";
+import { EVM_TX_HASH_REGEX_SOURCE, isEvmTransactionHash } from "../utils/tx.js";
 
 /**
  * x402 결제 게이트 미들웨어 (Phase 2-4)
@@ -85,6 +86,8 @@ export async function x402Gate(
     req.accessContext = {
       accessType: "receipt",
       receiptId: existingReceipt.receiptId,
+      paymentTxHash: existingReceipt.vaultTxHash,
+      vaultReceiptRef: existingReceipt.vaultReceiptRef,
     };
     res.setHeader(
       "X-Access-Receipt",
@@ -109,7 +112,7 @@ export async function x402Gate(
   if (smartWalletAddress) {
     const walletInfo = await getWalletBalance(smartWalletAddress);
 
-    if (walletInfo.balanceUsdMicros >= pricing.priceUsdMicros || env.NODE_ENV === "development") {
+    if (walletInfo.balanceUsdMicros >= pricing.priceUsdMicros) {
       // quoteId 검증 (있으면)
       const quoteId = typeof req.headers["x-quote-id"] === "string"
         ? req.headers["x-quote-id"]
@@ -154,6 +157,8 @@ export async function x402Gate(
           req.accessContext = {
             accessType: "paid",
             receiptId: reusableReceipt.receiptId,
+            paymentTxHash: reusableReceipt.vaultTxHash,
+            vaultReceiptRef,
           };
           res.setHeader(
             "X-Access-Receipt",
@@ -170,6 +175,9 @@ export async function x402Gate(
           pricing.priceUsdMicros,
           vaultReceiptRef
         );
+        if (!isEvmTransactionHash(txHash)) {
+          throw new Error(`[x402Gate] Vault deposit returned non-chain tx hash: ${txHash}`);
+        }
 
         const settlement: ReceiptSettlementFields = {
           creatorAddress: pricing.creatorAddress,
@@ -268,6 +276,7 @@ async function processPaymentAndIssueReceipt(
          AND payer = $3
          AND amount_usd_micros = $4
          AND creator_address = $5
+         AND vault_tx_hash ~ $6
        LIMIT 1`,
       [
         settlement.vaultReceiptRef,
@@ -275,12 +284,13 @@ async function processPaymentAndIssueReceipt(
         payer.toLowerCase(),
         amountUsdMicros,
         settlement.creatorAddress.toLowerCase(),
+        EVM_TX_HASH_REGEX_SOURCE,
       ]
     );
     if (existingPayment.rows.length > 0) {
       await client.query("COMMIT");
       const existingReceipt = await client.query(
-        `SELECT receipt_id, hmac FROM access_receipts WHERE receipt_id = $1`,
+        `SELECT receipt_id, hmac, vault_tx_hash FROM access_receipts WHERE receipt_id = $1`,
         [existingPayment.rows[0].receipt_id]
       );
       if (existingReceipt.rows.length > 0) {
@@ -288,6 +298,8 @@ async function processPaymentAndIssueReceipt(
         req.accessContext = {
           accessType: "paid",
           receiptId: r.receipt_id,
+          paymentTxHash: r.vault_tx_hash,
+          vaultReceiptRef: settlement.vaultReceiptRef,
         };
         res.setHeader("X-Access-Receipt", `${r.receipt_id}.${r.hmac}`);
         next();
@@ -339,6 +351,8 @@ async function processPaymentAndIssueReceipt(
     req.accessContext = {
       accessType: "paid",
       receiptId: receipt.receiptId,
+      paymentTxHash: settlement.vaultTxHash,
+      vaultReceiptRef: settlement.vaultReceiptRef,
     };
     next();
   } catch (err: unknown) {
@@ -371,14 +385,15 @@ async function findReceiptByVaultRef(params: {
   payer: string;
   creatorAddress: string;
   amountUsdMicros: number;
-}): Promise<{ receiptId: string; hmac: string } | null> {
+}): Promise<{ receiptId: string; hmac: string; vaultTxHash: string } | null> {
   const result = await pool.query(
-    `SELECT receipt_id, hmac FROM access_receipts
+    `SELECT receipt_id, hmac, vault_tx_hash FROM access_receipts
      WHERE vault_receipt_ref = $1
        AND attestation_id = $2
        AND payer = $3
        AND creator_address = $4
        AND amount_usd_micros = $5
+       AND vault_tx_hash ~ $6
        AND (expires_at IS NULL OR expires_at > NOW())
      ORDER BY paid_at DESC LIMIT 1`,
     [
@@ -387,6 +402,7 @@ async function findReceiptByVaultRef(params: {
       params.payer.toLowerCase(),
       params.creatorAddress.toLowerCase(),
       params.amountUsdMicros,
+      EVM_TX_HASH_REGEX_SOURCE,
     ]
   );
 
@@ -394,5 +410,6 @@ async function findReceiptByVaultRef(params: {
   return {
     receiptId: result.rows[0].receipt_id,
     hmac: result.rows[0].hmac,
+    vaultTxHash: result.rows[0].vault_tx_hash,
   };
 }

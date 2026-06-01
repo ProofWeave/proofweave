@@ -185,6 +185,25 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- Earlier local development builds could synthesize dev-* tx ids while still
+-- filling vault settlement columns. Those rows are not on-chain payments and
+-- must not block the same receiptRef from being settled for real later.
+UPDATE access_receipts
+SET tx_hash = NULL,
+    vault_tx_hash = NULL,
+    vault_receipt_ref = NULL,
+    claimable_amount_usd_micros = NULL
+WHERE tx_hash LIKE 'dev-%'
+   OR vault_tx_hash LIKE 'dev-%';
+
+UPDATE payments_ledger
+SET tx_hash = NULL,
+    vault_tx_hash = NULL,
+    vault_receipt_ref = NULL,
+    claimable_amount_usd_micros = NULL
+WHERE tx_hash LIKE 'dev-%'
+   OR vault_tx_hash LIKE 'dev-%';
+
 CREATE INDEX IF NOT EXISTS idx_ledger_payer ON payments_ledger(payer);
 CREATE INDEX IF NOT EXISTS idx_ledger_attestation ON payments_ledger(attestation_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_creator ON payments_ledger(creator_address);
@@ -306,6 +325,44 @@ CREATE INDEX IF NOT EXISTS idx_data_reuse_consumer_created_at
 
 CREATE INDEX IF NOT EXISTS idx_data_reuse_attestation
   ON data_reuse_events(attestation_id);
+
+-- ============================================================
+-- 사용자가 입력한 프롬프트 기록 (세션 간 영속) — llm_usage_events 패턴 복제
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS prompt_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  model TEXT,
+  result TEXT,
+  input_tokens BIGINT NOT NULL DEFAULT 0,
+  output_tokens BIGINT NOT NULL DEFAULT 0,
+  estimated_cost_usd_micros BIGINT NOT NULL DEFAULT 0,
+  llm_usage_event_id UUID REFERENCES llm_usage_events(id) ON DELETE SET NULL,
+  attestation_id TEXT REFERENCES attestations(attestation_id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_history_owner_created_at
+  ON prompt_history(owner, created_at DESC);
+
+-- ============================================================
+-- Creator earnings claim 실행 내역 (on-chain claimCreatorBalance)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS claim_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  creator TEXT NOT NULL,
+  amount_base_units TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  tx_hash TEXT NOT NULL,
+  chain_id INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_claim_history_creator_created_at
+  ON claim_history(creator, created_at DESC);
 	`;
 
 /**

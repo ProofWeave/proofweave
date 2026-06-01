@@ -42,6 +42,8 @@ const mockClaim = vi.mocked(claimFromSmartWallet);
 const WEB_SMART = "0x1111111111111111111111111111111111111111";
 const CLI_EOA = "0x2222222222222222222222222222222222222222";
 const RECIPIENT = "0x3333333333333333333333333333333333333333";
+const CLAIM_TX = `0x${"a".repeat(64)}`;
+const CLAIM_TX_2 = `0x${"b".repeat(64)}`;
 
 // auth 헬퍼: API key별로 web/CLI 유저 시뮬레이트
 function asWebUser() {
@@ -224,7 +226,7 @@ describe("GET /claims/me", () => {
     expect(body.reconciled).toBe(true);
     expect(body.warnings).toEqual([]);
     // creator는 서버 유도 — query가 lowercased creator로 호출됐는지 확인
-    expect(mockPoolQuery.mock.calls[0][1]).toEqual([CLI_EOA.toLowerCase()]);
+    expect(mockPoolQuery.mock.calls[0][1][0]).toBe(CLI_EOA.toLowerCase());
   });
 
   it("on-chain read 실패 → 200 + onchain.available=false + warning (500 아님)", async () => {
@@ -321,12 +323,12 @@ describe("POST /claims/execute (웹 CDP 경로)", () => {
   it("정상 → creator 서버 유도(본인 smart wallet)로 claim, txHash 반환", async () => {
     asWebUser();
     mockClaimableBalance.mockResolvedValue(5000000n);
-    mockClaim.mockResolvedValue("0xclaimtx");
+    mockClaim.mockResolvedValue(CLAIM_TX);
 
     const res = await postExecute({ amount: "1000000", to: RECIPIENT }, { "x-api-key": "pw_web" });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.txHash).toBe("0xclaimtx");
+    expect(body.txHash).toBe(CLAIM_TX);
     expect(body.amountBaseUnits).toBe("1000000");
     // claimFromSmartWallet이 creator 본인 smart wallet로 호출됐는지 (client 입력 아님)
     expect(mockClaim).toHaveBeenCalledOnce();
@@ -339,7 +341,7 @@ describe("POST /claims/execute (웹 CDP 경로)", () => {
   it("to 미지정 → 기본값 = 본인 smart wallet", async () => {
     asWebUser();
     mockClaimableBalance.mockResolvedValue(5000000n);
-    mockClaim.mockResolvedValue("0xtx2");
+    mockClaim.mockResolvedValue(CLAIM_TX_2);
     const res = await postExecute({ amount: "1000000" }, { "x-api-key": "pw_web" });
     expect(res.status).toBe(200);
     const [, , to] = mockClaim.mock.calls[0];
@@ -366,7 +368,7 @@ describe("POST /claims/execute (웹 CDP 경로)", () => {
     const res2 = await postExecute({ amount: "1000000", to: RECIPIENT }, { "x-api-key": "pw_web" });
     expect(res2.status).toBe(409);
 
-    release("0xtx");
+    release(CLAIM_TX);
     const res1 = await p1;
     expect(res1.status).toBe(200);
   });

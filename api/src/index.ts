@@ -15,6 +15,7 @@ import { taintGuardRouter } from "./routes/taintGuard.js";
 import { statsRouter } from "./routes/stats.js";
 import { purchasesRouter } from "./routes/purchases.js";
 import { claimsRouter } from "./routes/claims.js";
+import { promptHistoryRouter } from "./routes/promptHistory.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
@@ -47,6 +48,7 @@ app.use(claimsRouter);     // GET /claims/me, POST /claims/execute (web CDP)
 app.use(attestRouter);         // POST /attest (authenticated)
 app.use(attestationsRouter);   // GET /attestations/:id, /detail, /verify, /search
 app.use(aiRouter);             // POST /ai/analyze (authenticated)
+app.use(promptHistoryRouter);  // GET/DELETE /prompt-history (authenticated)
 app.use(taintGuardRouter);     // POST /taint/evaluate (authenticated)
 
 // ── Error Handler ───────────────────────────────────────────

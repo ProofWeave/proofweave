@@ -11,6 +11,10 @@ const mockClient = {
 };
 mockConnect.mockResolvedValue(mockClient);
 
+const mockGetSmartWalletAddress = vi.hoisted(() => vi.fn());
+const mockGetWalletBalance = vi.hoisted(() => vi.fn());
+const mockDepositUsdcToVault = vi.hoisted(() => vi.fn());
+
 vi.mock("../services/db.js", () => ({
   pool: {
     query: (...args: unknown[]) => mockQuery(...args),
@@ -33,11 +37,15 @@ vi.mock("../config/chain.js", () => ({
 }));
 
 vi.mock("../services/wallet.js", () => ({
-  getSmartWalletAddress: vi.fn().mockResolvedValue(null),
-  getWalletBalance: vi.fn().mockResolvedValue({ balanceUsdMicros: 0 }),
-  depositUsdcToVaultFromSmartWallet: vi.fn().mockResolvedValue("dev-vault-tx-123"),
+  getSmartWalletAddress: (...args: unknown[]) => mockGetSmartWalletAddress(...args),
+  getWalletBalance: (...args: unknown[]) => mockGetWalletBalance(...args),
+  depositUsdcToVaultFromSmartWallet: (...args: unknown[]) => mockDepositUsdcToVault(...args),
   transferUsdcFromSmartWallet: vi.fn().mockResolvedValue("dev-tx-123"),
 }));
+
+const SMART_WALLET = "0x1111111111111111111111111111111111111111";
+const CREATOR = "0x4444444444444444444444444444444444444444";
+const VALID_TX_HASH = `0x${"c".repeat(64)}`;
 
 describe("x402Gate (Phase 2-4)", () => {
   let mockReq: Partial<Request>;
@@ -65,6 +73,9 @@ describe("x402Gate (Phase 2-4)", () => {
       json: jsonFn,
     } as unknown as Partial<Response>;
     mockClient.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    mockGetSmartWalletAddress.mockResolvedValue(null);
+    mockGetWalletBalance.mockResolvedValue({ balanceUsdMicros: 0 });
+    mockDepositUsdcToVault.mockResolvedValue(VALID_TX_HASH);
   });
 
   it("attestationId 없으면 400", async () => {
@@ -158,5 +169,97 @@ describe("x402Gate (Phase 2-4)", () => {
     const responseBody = jsonFn.mock.calls[0][0];
     expect(responseBody.quoteId).toBeDefined();
     expect(responseBody["x-402"]).toBe(true);
+  });
+
+  it("development 환경이어도 잔고 부족이면 결제 처리하지 않고 402", async () => {
+    mockGetSmartWalletAddress.mockResolvedValue(SMART_WALLET);
+    mockGetWalletBalance.mockResolvedValue({ balanceUsdMicros: 0 });
+    // hasValidReceipt → null
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // getPrice → 유료
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          attestation_id: "test-attest-001",
+          creator_address: CREATOR,
+          price_usd_micros: 50000,
+          currency: "USDC",
+          network: "eip155:84532",
+        },
+      ],
+    });
+    // issueQuote → 기존 quote 없음
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // issueQuote → INSERT
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const { x402Gate } = await import("../middleware/x402Gate.js");
+    await x402Gate(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(statusFn).toHaveBeenCalledWith(402);
+    expect(mockDepositUsdcToVault).not.toHaveBeenCalled();
+    expect(mockConnect).not.toHaveBeenCalled();
+  });
+
+  it("vault deposit이 실제 EVM tx hash를 반환하지 않으면 receipt/ledger를 만들지 않고 502", async () => {
+    mockGetSmartWalletAddress.mockResolvedValue(SMART_WALLET);
+    mockGetWalletBalance.mockResolvedValue({ balanceUsdMicros: 100000 });
+    mockDepositUsdcToVault.mockResolvedValue("dev-vault-tx-123");
+    // hasValidReceipt → null
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // getPrice → 유료
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          attestation_id: "test-attest-001",
+          creator_address: CREATOR,
+          price_usd_micros: 50000,
+          currency: "USDC",
+          network: "eip155:84532",
+        },
+      ],
+    });
+    // findReceiptByVaultRef → 없음
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const { x402Gate } = await import("../middleware/x402Gate.js");
+    await x402Gate(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(statusFn).toHaveBeenCalledWith(502);
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  it("유료 + 잔고 충분 + 실제 vault tx → receipt 발급 후 통과", async () => {
+    mockGetSmartWalletAddress.mockResolvedValue(SMART_WALLET);
+    mockGetWalletBalance.mockResolvedValue({ balanceUsdMicros: 100000 });
+    mockDepositUsdcToVault.mockResolvedValue(VALID_TX_HASH);
+    // hasValidReceipt → null
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // getPrice → 유료
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          attestation_id: "test-attest-001",
+          creator_address: CREATOR,
+          price_usd_micros: 50000,
+          currency: "USDC",
+          network: "eip155:84532",
+        },
+      ],
+    });
+    // findReceiptByVaultRef → 없음
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const { x402Gate } = await import("../middleware/x402Gate.js");
+    await x402Gate(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockDepositUsdcToVault).toHaveBeenCalledOnce();
+    expect(mockConnect).toHaveBeenCalledOnce();
+    expect(setHeaderFn).toHaveBeenCalledWith(
+      "X-Access-Receipt",
+      expect.stringMatching(/^[^.]+\.[0-9a-f]{64}$/)
+    );
+    expect(mockNext).toHaveBeenCalled();
   });
 });

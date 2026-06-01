@@ -3,6 +3,7 @@ import { getCdpClient } from "../config/cdp.js";
 import { env } from "../config/env.js";
 import { pool } from "./db.js";
 import type { SmartWalletInfo } from "../types/payment.js";
+import { isEvmTransactionHash } from "../utils/tx.js";
 
 /**
  * CDP Smart Wallet 서비스
@@ -242,12 +243,7 @@ export async function transferUsdcFromSmartWallet(
   amountUsdMicros: number
 ): Promise<string> {
   if (!env.CDP_API_KEY_ID) {
-    // CDP 미설정 시 스킵 (개발 모드)
-    console.warn(
-      "[wallet] DEV MODE: skipping USDC transfer",
-      { from: smartWalletAddress, to: toAddress, amount: amountUsdMicros }
-    );
-    return `dev-tx-${Date.now()}`;
+    throw new Error("[wallet] CDP credentials not configured; refusing to synthesize payment tx");
   }
 
   const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
@@ -277,8 +273,8 @@ export async function transferUsdcFromSmartWallet(
   }
 
   const txHash = result.transactionHash;
-  if (!txHash) {
-    throw new Error("[wallet] No txHash after UserOp completion");
+  if (!isEvmTransactionHash(txHash)) {
+    throw new Error("[wallet] No confirmed EVM txHash after UserOp completion");
   }
 
   return txHash;
@@ -300,20 +296,8 @@ export async function depositUsdcToVaultFromSmartWallet(
   const receiptRefHex = asBytes32(receiptRef, "receiptRef");
   const amount = BigInt(amountUsdMicros);
 
-  if (!env.CDP_API_KEY_ID || env.NODE_ENV === "development") {
-    // CDP 미설정 시 스킵 (개발 모드)
-    console.warn(
-      "[wallet] DEV MODE: skipping vault deposit",
-      {
-        from: smartWalletAddress,
-        vault: VAULT_ADDRESS,
-        attestationId: attestationIdHex,
-        creator: creatorHex,
-        amount: amountUsdMicros,
-        receiptRef: receiptRefHex,
-      }
-    );
-    return `dev-vault-tx-${Date.now()}`;
+  if (!env.CDP_API_KEY_ID) {
+    throw new Error("[wallet] CDP credentials not configured; refusing to synthesize vault deposit tx");
   }
 
   const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
@@ -354,8 +338,8 @@ export async function depositUsdcToVaultFromSmartWallet(
   }
 
   const txHash = result.transactionHash;
-  if (!txHash) {
-    throw new Error("[wallet] No txHash after vault deposit UserOp completion");
+  if (!isEvmTransactionHash(txHash)) {
+    throw new Error("[wallet] No confirmed EVM txHash after vault deposit UserOp completion");
   }
 
   return txHash;
@@ -383,13 +367,8 @@ export async function claimFromSmartWallet(
     throw new Error("[wallet] claim amount must be greater than 0");
   }
 
-  if (!env.CDP_API_KEY_ID || env.NODE_ENV === "development") {
-    // CDP 미설정 시 스킵 (개발 모드) — deposit과 동일
-    console.warn(
-      "[wallet] DEV MODE: skipping creator claim",
-      { from: smartWalletAddress, to: toHex, amount: amountBaseUnits.toString() }
-    );
-    return `dev-claim-tx-${Date.now()}`;
+  if (!env.CDP_API_KEY_ID) {
+    throw new Error("[wallet] CDP credentials not configured; refusing to synthesize claim tx");
   }
 
   const { cdp, smartAccount } = await getSmartAccountForPayment(smartWalletAddress);
@@ -421,8 +400,8 @@ export async function claimFromSmartWallet(
   }
 
   const txHash = result.transactionHash;
-  if (!txHash) {
-    throw new Error("[wallet] No txHash after claim UserOp completion");
+  if (!isEvmTransactionHash(txHash)) {
+    throw new Error("[wallet] No confirmed EVM txHash after claim UserOp completion");
   }
 
   return txHash;

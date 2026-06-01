@@ -6,6 +6,8 @@ import { getCreatorEarnings } from "../services/ledger.js";
 import { claimFromSmartWallet } from "../services/wallet.js";
 import { vaultRead } from "../contracts/attestationRegistry.js";
 import { env } from "../config/env.js";
+import { isEvmTransactionHash } from "../utils/tx.js";
+import { pool } from "../services/db.js";
 
 export const claimsRouter = Router();
 
@@ -200,6 +202,21 @@ claimsRouter.post("/claims/execute", authenticate, async (req, res) => {
 
   try {
     const txHash = await claimFromSmartWallet(creator, amountBaseUnits, recipient);
+    if (!isEvmTransactionHash(txHash)) {
+      throw new Error(`Claim returned non-chain tx hash: ${txHash}`);
+    }
+
+    // claim 실행 내역 영속 (실패해도 응답은 진행)
+    try {
+      await pool.query(
+        `INSERT INTO claim_history (creator, amount_base_units, recipient, tx_hash, chain_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [creator.toLowerCase(), amountBaseUnits.toString(), recipient.toLowerCase(), txHash, CHAIN_ID]
+      );
+    } catch (histErr) {
+      console.error("[claims] claim_history insert failed:", histErr);
+    }
+
     res.json({
       txHash,
       chainId: CHAIN_ID,
@@ -214,5 +231,47 @@ claimsRouter.post("/claims/execute", authenticate, async (req, res) => {
     });
   } finally {
     inFlightClaims.delete(lockKey);
+  }
+});
+
+/**
+ * GET /claims/history — 내 claim 실행 내역 (최신순)
+ */
+claimsRouter.get("/claims/history", authenticate, async (req, res) => {
+  const { creator } = deriveCreator(req);
+  if (!creator) {
+    res.json({ claims: [] });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      `SELECT id, amount_base_units, recipient, tx_hash, chain_id, created_at
+       FROM claim_history
+       WHERE creator = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [creator.toLowerCase()]
+    );
+    res.json({
+      claims: result.rows.map((r: {
+        id: string;
+        amount_base_units: string;
+        recipient: string;
+        tx_hash: string;
+        chain_id: number;
+        created_at: string;
+      }) => ({
+        id: r.id,
+        amountBaseUnits: r.amount_base_units,
+        amountUsd: (Number(r.amount_base_units) / 1_000_000).toFixed(2),
+        recipient: r.recipient,
+        txHash: r.tx_hash,
+        chainId: r.chain_id,
+        createdAt: r.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("[claims] /claims/history failed:", err);
+    res.status(500).json({ error: "Failed to fetch claim history" });
   }
 });

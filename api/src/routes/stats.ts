@@ -5,6 +5,7 @@ import {
   getUserAnalyticsSummary,
   parseAnalyticsRange,
 } from "../services/analytics.js";
+import { EVM_TX_HASH_REGEX_SOURCE } from "../utils/tx.js";
 
 export const statsRouter = Router();
 
@@ -23,15 +24,25 @@ statsRouter.get("/stats/me", authenticate, async (req, res) => {
   try {
     // 1. 내 구매 건수 (access_receipts)
     const purchasesResult = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM access_receipts WHERE payer = $1`,
-      [owner.toLowerCase()]
+      `SELECT COUNT(*)::int AS count
+       FROM access_receipts
+       WHERE payer = $1
+         AND vault_receipt_ref IS NOT NULL
+         AND vault_receipt_ref <> ''
+         AND vault_tx_hash ~ $2`,
+      [owner.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
     );
     const totalPurchases = purchasesResult.rows[0]?.count || 0;
 
     // 2. 내 총 지출 (payments_ledger)
     const spentResult = await pool.query(
-      `SELECT COALESCE(SUM(amount_usd_micros), 0)::bigint AS total FROM payments_ledger WHERE payer = $1`,
-      [owner.toLowerCase()]
+      `SELECT COALESCE(SUM(amount_usd_micros), 0)::bigint AS total
+       FROM payments_ledger
+       WHERE payer = $1
+         AND vault_receipt_ref IS NOT NULL
+         AND vault_receipt_ref <> ''
+         AND vault_tx_hash ~ $2`,
+      [owner.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
     );
     const totalSpentUsdMicros = Number(spentResult.rows[0]?.total || 0);
 

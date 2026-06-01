@@ -1,5 +1,6 @@
 import { pool } from "./db.js";
 import type { PoolClient } from "pg";
+import { EVM_TX_HASH_REGEX_SOURCE, isEvmTransactionHash } from "../utils/tx.js";
 
 export interface LedgerEntry {
   id?: string;
@@ -25,6 +26,13 @@ export async function recordPayment(
   entry: LedgerEntry,
   client?: PoolClient
 ): Promise<void> {
+  if (
+    entry.vaultReceiptRef &&
+    !isEvmTransactionHash(entry.vaultTxHash ?? entry.txHash)
+  ) {
+    throw new Error("Vault-backed ledger payment requires a confirmed EVM tx hash");
+  }
+
   const queryFn = client ?? pool;
   await queryFn.query(
     `INSERT INTO payments_ledger
@@ -48,9 +56,9 @@ export async function recordPayment(
 }
 
 export interface CreatorEarnings {
-  /** SUM(payments_ledger.amount_usd_micros) — 평생 누적 수익 (string, BigInt-safe) */
+  /** SUM(payments_ledger.amount_usd_micros) — 실제 vault tx가 있는 평생 누적 수익 */
   grossEarnedUsdMicros: string;
-  /** SUM(claimable_amount_usd_micros) — reconciliation으로 vault에 입금 확인된 누적액 */
+  /** SUM(claimable_amount_usd_micros) — 실제 vault tx가 있는 누적 입금액 */
   reconciledDepositedUsdMicros: string;
   /** creator를 지정한 결제 건수 */
   paymentCount: number;
@@ -75,17 +83,23 @@ export async function getCreatorEarnings(
        COALESCE(SUM(claimable_amount_usd_micros), 0)::text AS reconciled_deposited_usd_micros,
        COUNT(*)::int                                       AS payment_count
      FROM payments_ledger
-     WHERE creator_address = $1`,
-    [creator]
+     WHERE creator_address = $1
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $2`,
+    [creator, EVM_TX_HASH_REGEX_SOURCE]
   );
 
   const latest = await pool.query(
     `SELECT vault_tx_hash, created_at
      FROM payments_ledger
-     WHERE creator_address = $1 AND vault_tx_hash IS NOT NULL
+     WHERE creator_address = $1
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $2
      ORDER BY created_at DESC
      LIMIT 1`,
-    [creator]
+    [creator, EVM_TX_HASH_REGEX_SOURCE]
   );
 
   const row = agg.rows[0];
@@ -110,9 +124,12 @@ export async function getPaymentHistory(
             vault_receipt_ref, claimable_amount_usd_micros, created_at
      FROM payments_ledger
      WHERE payer = $1
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $2
      ORDER BY created_at DESC
      LIMIT 100`,
-    [walletAddress.toLowerCase()]
+    [walletAddress.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
   );
 
   return result.rows.map((row) => ({

@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { pool } from "./db.js";
 import { issueReceipt } from "./receipt.js";
 import { recordPayment } from "./ledger.js";
+import { EVM_TX_HASH_REGEX_SOURCE } from "../utils/tx.js";
 
 export interface ReconciliationResult {
   processed: number;
@@ -66,8 +67,11 @@ export async function reconcileUnresolvedDeposits(fromBlock?: bigint): Promise<R
 
       // 2. 이미 해당 vault_receipt_ref를 레퍼런스하는 영수증이 존재하지 않는지 조회 (중복 처리 방지)
       const existingReceipt = await pool.query(
-        `SELECT receipt_id FROM access_receipts WHERE vault_receipt_ref = $1 LIMIT 1`,
-        [receiptRefStr]
+        `SELECT receipt_id FROM access_receipts
+         WHERE vault_receipt_ref = $1
+           AND vault_tx_hash ~ $2
+         LIMIT 1`,
+        [receiptRefStr, EVM_TX_HASH_REGEX_SOURCE]
       );
 
       if (existingReceipt.rows.length > 0) {

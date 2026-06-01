@@ -4,6 +4,7 @@ import { pool } from "./db.js";
 import type { PoolClient } from "pg";
 import { env } from "../config/env.js";
 import type { AccessReceipt, ParsedReceipt } from "../types/payment.js";
+import { EVM_TX_HASH_REGEX_SOURCE, isEvmTransactionHash } from "../utils/tx.js";
 
 export interface ReceiptSettlementFields {
   creatorAddress: string;
@@ -83,6 +84,10 @@ export async function issueReceipt(
   client?: PoolClient,
   settlement?: ReceiptSettlementFields
 ): Promise<AccessReceipt> {
+  if (settlement && !isEvmTransactionHash(settlement.vaultTxHash)) {
+    throw new Error("Receipt settlement requires a confirmed EVM vault tx hash");
+  }
+
   const receiptId = uuidv7();
   const hmac = signReceipt(receiptId, attestationId, payer);
   const paidAt = new Date().toISOString();
@@ -152,8 +157,11 @@ export async function verifyReceipt(
      WHERE receipt_id = $1
        AND attestation_id = $2
        AND payer = $3
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $4
        AND (expires_at IS NULL OR expires_at > NOW())`,
-    [receiptId, attestationId, payer.toLowerCase()]
+    [receiptId, attestationId, payer.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
   );
   return result.rows.length > 0;
 }
@@ -173,14 +181,54 @@ export async function hasValidReceipt(
      FROM access_receipts
      WHERE payer = $1
        AND attestation_id = $2
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $3
        AND (expires_at IS NULL OR expires_at > NOW())
      ORDER BY paid_at DESC LIMIT 1`,
-    [payer.toLowerCase(), attestationId]
+    [payer.toLowerCase(), attestationId, EVM_TX_HASH_REGEX_SOURCE]
   );
 
   if (result.rows.length === 0) return null;
 
-  const row = result.rows[0];
+  return mapReceiptRow(result.rows[0]);
+}
+
+export async function getReceiptById(receiptId: string): Promise<AccessReceipt | null> {
+  const result = await pool.query(
+    `SELECT receipt_id, attestation_id, payer, payment_method, tx_hash,
+            amount_usd_micros, creator_address, vault_address, vault_tx_hash,
+            vault_receipt_ref, claimable_amount_usd_micros, hmac, paid_at, expires_at
+     FROM access_receipts
+     WHERE receipt_id = $1
+       AND vault_receipt_ref IS NOT NULL
+       AND vault_receipt_ref <> ''
+       AND vault_tx_hash ~ $2
+       AND (expires_at IS NULL OR expires_at > NOW())
+     LIMIT 1`,
+    [receiptId, EVM_TX_HASH_REGEX_SOURCE]
+  );
+
+  if (result.rows.length === 0) return null;
+  return mapReceiptRow(result.rows[0]);
+}
+
+function mapReceiptRow(row: {
+  receipt_id: string;
+  attestation_id: string;
+  payer: string;
+  payment_method: "smart-wallet";
+  tx_hash: string | null;
+  amount_usd_micros: string | number;
+  creator_address: string | null;
+  vault_address: string | null;
+  vault_tx_hash: string | null;
+  vault_receipt_ref: string | null;
+  claimable_amount_usd_micros: string | number | null;
+  hmac: string;
+  paid_at: string;
+  expires_at: string | null;
+}): AccessReceipt {
   return {
     receiptId: row.receipt_id,
     attestationId: row.attestation_id,

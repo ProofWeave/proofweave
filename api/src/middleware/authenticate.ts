@@ -10,6 +10,8 @@ declare global {
       accessContext?: {
         accessType: "paid" | "free" | "receipt";
         receiptId?: string | null;
+        paymentTxHash?: string | null;
+        vaultReceiptRef?: string | null;
       };
     }
   }
