@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bot, Edit3, Sparkles, FileCheck, Send, RotateCcw, User, ShieldAlert, CheckCircle } from 'lucide-react';
+import { Bot, Edit3, Sparkles, FileCheck, Send, RotateCcw, User, ShieldAlert, CheckCircle, Plus, Trash2, MessageSquare } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/auth-core';
 import { evaluatePromptGuard } from '../lib/taintGuard';
 
 type Tab = 'ai' | 'manual';
@@ -101,8 +102,46 @@ function StreamingText({
   );
 }
 
+/* 대화 세션 영속 — 여러 대화를 user별 localStorage에 보관하고 목록에서 불러온다(세션 방식).
+   streaming/attesting 같은 일시 플래그는 저장 시 제거해 복원 후 재애니메이션을 막는다. */
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  updatedAt: number;
+}
+const SESSIONS_KEY = (uid: string) => `pw_chat_sessions_${uid}`;
+
+function cleanMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages
+    .filter((m) => !m.streaming)
+    .map(({ streaming, attesting, ...rest }) => { void streaming; void attesting; return rest; });
+}
+function deriveTitle(messages: ChatMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user');
+  if (!firstUser) return '새 대화';
+  const t = firstUser.content.trim().replace(/\s+/g, ' ');
+  return t.length > 32 ? `${t.slice(0, 32)}…` : t || '새 대화';
+}
+function loadSessions(uid: string): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY(uid));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function saveSessions(uid: string, sessions: ChatSession[]) {
+  try {
+    localStorage.setItem(SESSIONS_KEY(uid), JSON.stringify(sessions));
+  } catch { /* quota — ignore */ }
+}
+
 /* ── AttestPage ───────────────────────────────────────────── */
 export function AttestPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('ai');
 
   // ── Model management ──
@@ -110,11 +149,29 @@ export function AttestPage() {
   const [selectedModel, setSelectedModel] = useState('');
   const [modelsLoading, setModelsLoading] = useState(true);
 
-  // ── Chat state ──
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // ── Chat sessions (persisted per user) ──
+  const uid = user?.id ?? 'anon';
+  const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions(uid));
+  const [activeId, setActiveId] = useState<string>(() => loadSessions(uid)[0]?.id ?? crypto.randomUUID());
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadSessions(uid)[0]?.messages ?? []);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 활성 대화가 바뀌면 세션 목록에 commit + 영속 (빈 대화는 저장하지 않음)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    setSessions((prev) => {
+      const clean = cleanMessages(messages);
+      const title = deriveTitle(messages);
+      const idx = prev.findIndex((s) => s.id === activeId);
+      const updated: ChatSession = { id: activeId, title, messages: clean, updatedAt: Date.now() };
+      const next = idx >= 0 ? prev.map((s, i) => (i === idx ? updated : s)) : [updated, ...prev];
+      next.sort((a, b) => b.updatedAt - a.updatedAt);
+      saveSessions(uid, next);
+      return next;
+    });
+  }, [messages, activeId, uid]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -312,9 +369,31 @@ export function AttestPage() {
 
   // ── New chat ──
   const handleNewChat = () => {
+    setActiveId(crypto.randomUUID());
     setMessages([]);
     setPrompt('');
     setError(null);
+  };
+
+  const selectSession = (id: string) => {
+    const s = sessions.find((x) => x.id === id);
+    if (!s) return;
+    setActiveId(id);
+    setMessages(s.messages);
+    setPrompt('');
+    setError(null);
+  };
+
+  const deleteSession = (id: string) => {
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      saveSessions(uid, next);
+      return next;
+    });
+    if (id === activeId) {
+      setActiveId(crypto.randomUUID());
+      setMessages([]);
+    }
   };
 
   // ── Enter to send (Shift+Enter for newline) ──
@@ -329,7 +408,7 @@ export function AttestPage() {
     <>
       <div className="page-header">
         <h2>Attest</h2>
-        <p>AI 분석 결과를 온체인에 등록</p>
+        <p>AI 분석 결과를 온체인에 등록 · 대화는 세션으로 저장되어 언제든 다시 불러올 수 있습니다</p>
       </div>
 
       <div className="tabs">
@@ -350,7 +429,42 @@ export function AttestPage() {
       </div>
 
       {activeTab === 'ai' && (
-        <div className="chat-container">
+        <div className="attest-workspace">
+          {/* ── Session list ── */}
+          <aside className="session-panel">
+            <button className="btn btn-primary btn-sm session-new" onClick={handleNewChat}>
+              <Plus size={14} /> 새 대화
+            </button>
+            <div className="session-list">
+              {sessions.length === 0 ? (
+                <p className="text-xs text-muted" style={{ padding: '8px 10px' }}>대화 기록이 없습니다.</p>
+              ) : sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`session-item ${s.id === activeId ? 'active' : ''}`}
+                  onClick={() => selectSession(s.id)}
+                >
+                  <MessageSquare size={13} className="session-item__icon" />
+                  <div className="session-item__body">
+                    <span className="session-item__title">{s.title}</span>
+                    <span className="session-item__date">
+                      {new Date(s.updatedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <button
+                    className="session-item__del"
+                    onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                    aria-label="대화 삭제"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          {/* ── Chat ── */}
+          <div className="chat-container">
           {/* ── Messages Area ── */}
           <div className="chat-messages">
             {messages.length === 0 && !loading && (
@@ -537,6 +651,7 @@ export function AttestPage() {
               )}
             </div>
           </div>
+          </div>{/* /chat-container */}
         </div>
       )}
 
