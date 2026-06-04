@@ -9,6 +9,16 @@ import { EVM_TX_HASH_REGEX_SOURCE } from "../utils/tx.js";
 
 export const statsRouter = Router();
 
+function deriveAttestationCreator(req: {
+  apiKeyOwner?: string;
+  smartWalletAddress?: string | null;
+}): string | null {
+  const owner = req.apiKeyOwner;
+  if (!owner) return null;
+  if (owner.startsWith("web:")) return req.smartWalletAddress ?? null;
+  return owner;
+}
+
 /**
  * GET /stats/me — 내 통계 (인증 필요)
  *
@@ -22,6 +32,9 @@ statsRouter.get("/stats/me", authenticate, async (req, res) => {
   }
 
   try {
+    const ownerLower = owner.toLowerCase();
+    const attestationCreator = deriveAttestationCreator(req);
+
     // 1. 내 구매 건수 (access_receipts)
     const purchasesResult = await pool.query(
       `SELECT COUNT(*)::int AS count
@@ -30,7 +43,7 @@ statsRouter.get("/stats/me", authenticate, async (req, res) => {
          AND vault_receipt_ref IS NOT NULL
          AND vault_receipt_ref <> ''
          AND vault_tx_hash ~ $2`,
-      [owner.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
+      [ownerLower, EVM_TX_HASH_REGEX_SOURCE]
     );
     const totalPurchases = purchasesResult.rows[0]?.count || 0;
 
@@ -42,16 +55,19 @@ statsRouter.get("/stats/me", authenticate, async (req, res) => {
          AND vault_receipt_ref IS NOT NULL
          AND vault_receipt_ref <> ''
          AND vault_tx_hash ~ $2`,
-      [owner.toLowerCase(), EVM_TX_HASH_REGEX_SOURCE]
+      [ownerLower, EVM_TX_HASH_REGEX_SOURCE]
     );
     const totalSpentUsdMicros = Number(spentResult.rows[0]?.total || 0);
 
-    // 3. 내 등록 건수 (attestations)
-    const attestResult = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM attestations WHERE creator = $1`,
-      [owner.toLowerCase()]
-    );
-    const totalAttestations = attestResult.rows[0]?.count || 0;
+    // 3. 내 등록 건수 (attestations): attest/pricing/claims와 동일한 creator 규칙
+    let totalAttestations = 0;
+    if (attestationCreator) {
+      const attestResult = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM attestations WHERE LOWER(creator) = LOWER($1)`,
+        [attestationCreator.toLowerCase()]
+      );
+      totalAttestations = attestResult.rows[0]?.count || 0;
+    }
 
     // 4. 절감액 추정 (직접 AI 호출 대비)
     //    가정: 직접 호출 시 건당 ~$0.05, ProofWeave 통해 건당 ~$0.01
