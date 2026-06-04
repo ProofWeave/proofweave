@@ -21,6 +21,12 @@ envContent.split('\n').forEach(line => {
       value = value.substring(1, value.length - 1);
     } else if (value.startsWith("'") && value.endsWith("'")) {
       value = value.substring(1, value.length - 1);
+    } else {
+      // 따옴표 없는 값: 인라인 주석(공백+#) 제거.
+      // (이걸 안 하면 "KEY=값  # 주석" 의 주석이 값에 섞여 들어가 JWT 등이 무효화됨 —
+      //  실제로 SUPABASE_SERVICE_ROLE_KEY 에 주석이 붙어 인증이 전부 깨진 적 있음)
+      const commentIdx = value.search(/\s#/);
+      if (commentIdx >= 0) value = value.slice(0, commentIdx);
     }
     localEnv[key] = value.trim();
   }
@@ -41,11 +47,16 @@ const secretKeys = [
   "GEMINI_API_KEY"
 ];
 
-const finalEnv = { ...localEnv };
-
-// process.env 에 있는 것도 병합
+// 우선순위: .env(localEnv) > process.env > Keychain.
+//   process.env 를 베이스로 깔되, .env 가 있으면 .env 가 이긴다.
+//   (배포 shell 에 우연히 export 된 무효 값이 .env 의 정식 값을 덮어쓰는 사고 방지 —
+//    실제로 무효한 SUPABASE_SERVICE_ROLE_KEY 가 주입돼 인증이 전부 깨진 적 있음)
+const finalEnv = {};
 for (const [k, v] of Object.entries(process.env)) {
   if (v) finalEnv[k] = v;
+}
+for (const [k, v] of Object.entries(localEnv)) {
+  if (v) finalEnv[k] = v; // .env 가 process.env 를 덮어쓴다 (소스 오브 트루스)
 }
 
 // Keychain 탐색
