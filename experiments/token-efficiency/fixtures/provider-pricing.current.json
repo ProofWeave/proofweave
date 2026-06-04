@@ -1,42 +1,49 @@
 {
   "_meta": {
-    "purpose": "Per-Mtok pricing for COST ESTIMATION only. Not provider billing. Verify on pricing pages on live-run day.",
+    "purpose": "Per-Mtok pricing + provider model ids for the COST/OUTPUT live measurement (C단계). Not provider billing — estimatedCost only.",
     "asOf": "2026-06-01",
     "unit": "USD per 1,000,000 tokens",
-    "warning": "claude-opus-4.8 and gpt-5.5-fast-high prices are UNVERIFIED placeholders (null). Do not estimate their cost until filled from the official pricing page on the run day. Fabricated prices are forbidden.",
-    "notes": [
-      "gemini output price includes thinking/thoughts tokens per Google pricing; a no-thinking single-shot call may differ.",
-      "Estimated cost = inputTokens/1e6*inputPerMtok + outputTokens/1e6*outputPerMtok. cacheRead/reasoning excluded by design (controlled single-shot harness)."
-    ]
+    "policy": "사용자 방침: 저가 티어로 호출하되 데이터셋(쿼리 수)을 늘린다. 요소별 $5 cap. 초과 예상 시 더 낮은 모델로.",
+    "labelVsCallModel": "키(label)는 호출할 실제 저가 모델 id다. 이 측정의 목적은 'raw vs artifact의 input/output/cost 구조'를 깨끗한 single-shot으로 보는 것이므로 모델 티어는 저가로 둔다. 발표용 플래그십 비교 라벨(Opus 4.8 / GPT-5.5 / Gemini 3.5)과는 분리한다.",
+    "verifiedFrom": [
+      "Gemini: ai.google.dev/gemini-api/docs/pricing (2026-06-01) — gemini-3.5-flash $1.5/$9 (output incl. thinking)",
+      "OpenAI: developers.openai.com/api/docs/pricing (2026-06-01) — gpt-5.5-mini 없음; gpt-5.4-mini $0.75/$4.50 사용",
+      "Anthropic: platform.claude.com/docs/en/about-claude/pricing (2026-06-01) — claude-sonnet-4-6 $3/$15"
+    ],
+    "costFormula": "estimatedCost = inputTokens/1e6*inputPerMtok + outputTokens/1e6*outputPerMtok (cache/reasoning 제외; single-shot)",
+    "fullRunCostEstimate": "42쿼리×(raw+artifact)=84콜, output cap 600 기준: gemini ~$0.53, gpt-5.4-mini ~$0.26, sonnet ~$0.90 — 모두 $5 cap 내"
   },
   "models": {
     "gemini-3.5-flash": {
+      "benchmarkLabel": "gemini-3.5-flash",
       "provider": "google",
-      "providerModelId": null,
+      "providerModelId": "gemini-3.5-flash",
       "apiKeyEnv": "GEMINI_API_KEY",
       "inputPerMtok": 1.50,
       "outputPerMtok": 9.00,
-      "verified": false,
-      "source": "live-model-cost-token-plan.md (Standard paid tier; output incl. thinking). Reconfirm at https://ai.google.dev/gemini-api/docs/pricing on run day.",
-      "priceIncludesThinkingInOutput": true
+      "verified": true,
+      "priceIncludesThinkingInOutput": true,
+      "source": "ai.google.dev/gemini-api/docs/pricing 2026-06-01"
     },
-    "gpt-5.5-fast-high": {
+    "gpt-5.4-mini": {
+      "benchmarkLabel": "gpt-5.5-fast-high (발표 비교 라벨); 실호출은 저가 대체 gpt-5.4-mini (gpt-5.5-mini 미존재)",
       "provider": "openai",
-      "providerModelId": null,
+      "providerModelId": "gpt-5.4-mini",
       "apiKeyEnv": "OPENAI_API_KEY",
-      "inputPerMtok": null,
-      "outputPerMtok": null,
-      "verified": false,
-      "source": "TBD — fill providerModelId + price from https://platform.openai.com/docs/pricing on run day. Do not guess."
+      "inputPerMtok": 0.75,
+      "outputPerMtok": 4.50,
+      "verified": true,
+      "source": "developers.openai.com/api/docs/pricing 2026-06-01 (gpt-5.5-mini 없음 → gpt-5.4-mini)"
     },
-    "claude-opus-4.8": {
+    "claude-sonnet-4-6": {
+      "benchmarkLabel": "claude-opus-4.8 (발표 비교 라벨); 실호출은 저가 대체 claude-sonnet-4-6",
       "provider": "anthropic",
-      "providerModelId": null,
+      "providerModelId": "claude-sonnet-4-6",
       "apiKeyEnv": "ANTHROPIC_API_KEY",
-      "inputPerMtok": null,
-      "outputPerMtok": null,
-      "verified": false,
-      "source": "TBD — fill providerModelId + price from https://docs.anthropic.com/en/docs/about-claude/pricing on run day. Do not guess."
+      "inputPerMtok": 3.00,
+      "outputPerMtok": 15.00,
+      "verified": true,
+      "source": "platform.claude.com/docs/en/about-claude/pricing 2026-06-01"
     }
   }
 }

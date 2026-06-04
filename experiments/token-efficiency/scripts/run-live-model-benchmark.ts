@@ -24,8 +24,9 @@
 //   바뀔 수 있다. 아래 어댑터는 문서화된 형태 기준이며 raw usage를 항상 저장하므로
 //   필드명이 달라도 사후 재계산 가능하다.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { countText } from "./count-canonical.js";
 import {
   loadBenchmarkFixture,
@@ -36,6 +37,25 @@ import {
   type BenchmarkFixture,
   type BenchmarkListing,
 } from "./benchmark-v2-utils.js";
+
+// 의존성 없는 .env 로더: experiments/token-efficiency/.env 의 KEY=VALUE 를 process.env 로 읽는다.
+// 이미 셸에 설정된 값은 덮어쓰지 않는다. (.env 는 .gitignore 로 커밋 제외됨)
+function loadDotEnv(): void {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const path = join(root, ".env");
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const k = trimmed.slice(0, eq).trim();
+    let v = trimmed.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (!(k in process.env)) process.env[k] = v;
+  }
+}
+loadDotEnv();
 
 type Scenario = "raw" | "artifact";
 
