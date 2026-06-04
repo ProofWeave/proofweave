@@ -1,0 +1,61 @@
+{
+  "evaluatorAgent": "antigravity",
+  "model": "gemini-3.5-flash",
+  "usageNote": "quality only; tokens/cost NOT measured (agent harness)",
+  "perQuery": [
+    {
+      "queryId": "bq_full_013",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_019",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_025",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_031",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    }
+  ],
+  "noMatch": {
+    "queryId": "bq_full_037",
+    "correctlyRefused": true
+  },
+  "summary": {
+    "matchedQueries": 4,
+    "rawPassCount": 4,
+    "artifactPassCount": 4,
+    "qualityRegressionVsRaw": "none: 압축된 아티팩트에서도 벤치마크 평가를 위한 모든 mustInclude 필수 키워드(OHLC, trades, last cursor, gap list, Recommendation 16, originator/beneficiary information, VASP, _disableInitializers, ERC1967Proxy, storage layout, upgrade authorization, SKILL.md, description, progressive disclosure, workflow steps)를 누락 없이 완벽하게 제공하므로 RAW(원본) 대비 품질 저하가 전혀 발생하지 않았습니다."
+  }
+}

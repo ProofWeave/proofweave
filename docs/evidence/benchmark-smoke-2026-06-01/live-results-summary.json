@@ -1,0 +1,41 @@
+[
+  {
+    "modelId": "gpt-5.4-mini",
+    "pairedEligibleQueries": 41,
+    "rawInputTokens": 35620,
+    "artifactInputTokens": 14422,
+    "inputReduction": 0.595115103874228,
+    "rawOutputTokens": 10908,
+    "artifactOutputTokens": 9672,
+    "rawTotalTokens": 46528,
+    "artifactTotalTokens": 24094,
+    "totalReduction": 0.4821612792297112,
+    "costReduction": 0.2831163177266792
+  },
+  {
+    "modelId": "gemini-3.5-flash",
+    "pairedEligibleQueries": 41,
+    "rawInputTokens": 37980,
+    "artifactInputTokens": 15005,
+    "inputReduction": 0.6049236440231701,
+    "rawOutputTokens": 10057,
+    "artifactOutputTokens": 9873,
+    "rawTotalTokens": 82272,
+    "artifactTotalTokens": 52869,
+    "totalReduction": 0.35738768961493583,
+    "costReduction": 0.24489941213563615
+  },
+  {
+    "modelId": "claude-sonnet-4-6",
+    "pairedEligibleQueries": 24,
+    "rawInputTokens": 27894,
+    "artifactInputTokens": 11194,
+    "inputReduction": 0.598695059869506,
+    "rawOutputTokens": 26164,
+    "artifactOutputTokens": 18223,
+    "rawTotalTokens": 54058,
+    "artifactTotalTokens": 29417,
+    "totalReduction": 0.45582522475859266,
+    "costReduction": 0.3553876784656681
+  }
+]

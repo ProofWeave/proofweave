@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProofWeave 토큰효율 벤치마크 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--ink:#e2e8f0;--muted:#94a3b8;--cyan:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--line:#334155;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;line-height:1.5;padding:32px 24px 80px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  h1{font-size:1.9rem;font-weight:800;letter-spacing:-.5px;}
+  .sub{color:var(--muted);margin-top:6px;font-size:.95rem;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:28px 0;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;}
+  .kpi .label{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;}
+  .kpi .val{font-size:2rem;font-weight:800;margin-top:6px;}
+  .kpi .note{color:var(--muted);font-size:.72rem;margin-top:4px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 10px;}
+  .panel h2{font-size:1.02rem;font-weight:700;margin-bottom:4px;}
+  .panel .cap{color:var(--muted);font-size:.78rem;margin-bottom:12px;}
+  .full{grid-column:1/-1;}
+  .chartbox{position:relative;height:300px;}
+  .chartbox.sm{height:240px;}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:6px;}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{color:var(--muted);font-weight:600;font-size:.76rem;text-transform:uppercase;}
+  .foot{color:var(--muted);font-size:.74rem;margin-top:28px;border-top:1px solid var(--line);padding-top:16px;}
+  .tag{display:inline-block;background:#0b3b44;color:var(--cyan);border:1px solid #155e6b;border-radius:6px;padding:2px 8px;font-size:.7rem;margin-right:6px;}
+  .warn{color:var(--amber);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ProofWeave 토큰효율 벤치마크</h1>
+  <div class="sub">live 실측(provider usage) · single-shot · 전체 42쿼리 paired · 출력 cap 2000 · 저가 티어 호출 · 비용은 절감률만(금액 비공개) · 2026-06-02</div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">입력 컨텍스트 절감</div><div class="val" style="color:var(--green)">~60%</div><div class="note">3모델 live 실측 (59.5 / 60.5 / 59.9%)</div></div>
+    <div class="kpi"><div class="label">답변 품질</div><div class="val" style="color:var(--cyan)">동등</div><div class="note">regression none · 환각 0 (3모델)</div></div>
+    <div class="kpi"><div class="label">Retrieval Hit@3</div><div class="val">94.4%</div><div class="note">MRR 0.82 · no-match 100%</div></div>
+    <div class="kpi"><div class="label">offline 컨텍스트 절감</div><div class="val">67.4%</div><div class="note">tiktoken o200k proxy (42쿼리)</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>1. 모델별 3축 절감 (live 실측)</h2>
+      <div class="cap">입력 / 총토큰 / 비용 절감은 서로 다른 값이다. usageSource=provider_usage_metadata</div>
+      <div class="chartbox"><canvas id="c1"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. OpenCode → single-shot (GPT total 절감)</h2>
+      <div class="cap">agent harness 오염이 total을 어떻게 망쳤는지. 2.38% → 48.22%</div>
+      <div class="chartbox"><canvas id="c2"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>3. raw vs artifact 입력 토큰 (live)</h2>
+      <div class="cap">paired 합계, provider usage 기준</div>
+      <div class="chartbox"><canvas id="c3"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>4. Top-K 컨텍스트 효과 (offline)</h2>
+      <div class="cap warn">검색 폭이 클수록 절감이 사라진다. k≈3~5에서 0 교차</div>
+      <div class="chartbox"><canvas id="c4"></canvas></div>
+    </div>
+
+    <div class="panel full">
+      <h2>5. 종합 수치 표</h2>
+      <div class="cap">live 실측(입력/총토큰/비용) + offline + retrieval</div>
+      <table>
+        <thead><tr><th>지표</th><th>GPT (5.4-mini)</th><th>Gemini (3.5-flash)</th><th>Claude (sonnet-4-6)</th></tr></thead>
+        <tbody>
+          <tr><td>입력 절감 (live)</td><td>59.51%</td><td>60.49%</td><td>59.87%</td></tr>
+          <tr><td>총토큰 절감 (live)</td><td>48.22%</td><td>35.74%</td><td>45.58%</td></tr>
+          <tr><td>비용 절감 (live, 상대)</td><td>28.31%</td><td>24.49%</td><td>35.54%</td></tr>
+          <tr><td>품질 (artifact vs raw)</td><td>동등</td><td>동등</td><td>동등</td></tr>
+          <tr><td>paired 쿼리</td><td>41</td><td>41</td><td>24</td></tr>
+        </tbody>
+      </table>
+      <table style="margin-top:14px;">
+        <thead><tr><th>offline · retrieval (모델 무관)</th><th>값</th><th></th><th></th></tr></thead>
+        <tbody>
+          <tr><td>offline 컨텍스트 절감 (artifact, 42쿼리)</td><td>67.41%</td><td></td><td></td></tr>
+          <tr><td>Retrieval Hit@1 / Hit@3 / Hit@5</td><td>72.2% / 94.4% / 94.4%</td><td></td><td></td></tr>
+          <tr><td>MRR / nDCG@5</td><td>0.819 / 0.852</td><td></td><td></td></tr>
+          <tr><td>no-match precision / recall</td><td>100% / 100%</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="tag">usageSource: provider_usage_metadata</span>
+    <span class="tag">offline: tiktoken o200k proxy</span>
+    <span class="tag">estimatedCost — 청구서 아님, 금액 비공개</span><br><br>
+    <b>주의:</b> 호출 모델은 저가 티어(gpt-5.4-mini / gemini-3.5-flash / claude-sonnet-4-6)이며 발표 비교 라벨(GPT5.5 / Gemini3.5 / Opus4.8)과 분리. Claude는 24쿼리(네트워크 실패로 일부 누락; 입력 절감은 타 모델과 일치). 품질 "동등"은 만점 수렴 caveat 있음(이 데이터셋·루브릭 한정, 적대적 테스트 아님). 발표 덱의 "Quality-Adjusted Savings ±CI"·달러 금액은 projection이며 재사용 금지. 데이터 출처: live-results-summary.json · retrieval-summary.json.
+  </div>
+</div>
+
+<script>
+const FONT = {family:"-apple-system,Noto Sans KR,sans-serif"};
+Chart.defaults.color = "#94a3b8";
+Chart.defaults.font.family = FONT.family;
+const GRID = {color:"#334155"};
+
+// 1. 3축 절감
+new Chart(document.getElementById("c1"),{
+  type:"bar",
+  data:{labels:["GPT 5.4-mini","Gemini 3.5-flash","Claude sonnet-4-6"],
+    datasets:[
+      {label:"입력 절감",data:[59.51,60.49,59.87],backgroundColor:"#34d399"},
+      {label:"총토큰 절감",data:[48.22,35.74,45.58],backgroundColor:"#22d3ee"},
+      {label:"비용 절감",data:[28.31,24.49,35.54],backgroundColor:"#fbbf24"}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    scales:{y:{beginAtZero:true,max:80,grid:GRID,ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}},
+    plugins:{legend:{position:"top"}}}
+});
+
+// 2. OpenCode vs single-shot (GPT total)
+new Chart(document.getElementById("c2"),{
+  type:"bar",
+  data:{labels:["OpenCode (오염)","single-shot (clean)"],
+    datasets:[{label:"GPT 총토큰 절감",data:[2.38,48.22],backgroundColor:["#f87171","#34d399"]}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    scales:{y:{beginAtZero:true,max:60,grid:GRID,ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}},
+    plugins:{legend:{display:false}}}
+});
+
+// 3. raw vs artifact 입력 토큰
+new Chart(document.getElementById("c3"),{
+  type:"bar",
+  data:{labels:["GPT","Gemini","Claude"],
+    datasets:[
+      {label:"raw 입력",data:[35620,37980,27894],backgroundColor:"#64748b"},
+      {label:"artifact 입력",data:[14422,15005,11194],backgroundColor:"#22d3ee"}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    scales:{y:{beginAtZero:true,grid:GRID},x:{grid:{display:false}}},
+    plugins:{legend:{position:"top"}}}
+});
+
+// 4. Top-K 곡선
+new Chart(document.getElementById("c4"),{
+  type:"line",
+  data:{labels:["k=1","k=2","k=3","k=5"],
+    datasets:[{label:"top_k 컨텍스트 절감(+절감/−증가)",data:[67.86,42.99,17.04,-38.01],
+      borderColor:"#fbbf24",backgroundColor:"rgba(251,191,36,.15)",fill:true,tension:.25,pointRadius:5}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    scales:{y:{grid:GRID,ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}},
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y>=0?c.parsed.y+"% 절감":Math.abs(c.parsed.y)+"% 증가"}}}}
+});
+</script>
+</body>
+</html>

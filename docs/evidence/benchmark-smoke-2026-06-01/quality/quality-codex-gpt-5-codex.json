@@ -1,0 +1,61 @@
+{
+  "evaluatorAgent": "codex",
+  "model": "gpt-5-codex",
+  "usageNote": "quality only; tokens/cost NOT measured (agent harness)",
+  "perQuery": [
+    {
+      "queryId": "bq_full_013",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_019",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_025",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    },
+    {
+      "queryId": "bq_full_031",
+      "rawScore": 1.0,
+      "artifactScore": 1.0,
+      "rawPass": true,
+      "artifactPass": true,
+      "rawMustIncludeHit": "4/4",
+      "artifactMustIncludeHit": "4/4",
+      "rawHallucination": false,
+      "artifactHallucination": false
+    }
+  ],
+  "noMatch": {
+    "queryId": "bq_full_037",
+    "correctlyRefused": true
+  },
+  "summary": {
+    "matchedQueries": 4,
+    "rawPassCount": 4,
+    "artifactPassCount": 4,
+    "qualityRegressionVsRaw": "none: 4개 matched query 모두 ARTIFACT가 RAW와 동일하게 mustInclude 4/4를 충족했고, mustNotHallucinate 문구를 포함하지 않았다. bq_full_037 no-match도 근거 없음으로 거절되어 품질 집계에서 제외했다."
+  }
+}
